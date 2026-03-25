@@ -1,4 +1,4 @@
-import { AdminLoginForm } from './login-form'
+import { AdminLoginForm } from "./login-form";
 
 export default function AdminLoginPage() {
   return (
@@ -11,5 +11,5 @@ export default function AdminLoginPage() {
       </div>
       <AdminLoginForm />
     </main>
-  )
+  );
 }

@@ -1,12 +1,15 @@
-'use client'
+"use client";
 
-import { useActionState } from 'react'
-import { loginAction, type LoginFormState } from './actions'
+import { useActionState } from "react";
+import { loginAction, type LoginFormState } from "./actions";
 
-const initialState: LoginFormState = null
+const initialState: LoginFormState = null;
 
 export function AdminLoginForm() {
-  const [state, formAction, pending] = useActionState(loginAction, initialState)
+  const [state, formAction, pending] = useActionState(
+    loginAction,
+    initialState,
+  );
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-sm">
@@ -30,8 +33,8 @@ export function AdminLoginForm() {
         disabled={pending}
         className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
       >
-        {pending ? 'Signing in…' : 'Sign in'}
+        {pending ? "Signing in…" : "Sign in"}
       </button>
     </form>
-  )
+  );
 }
