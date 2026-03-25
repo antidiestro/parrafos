@@ -1,0 +1,16 @@
+{
+  "name": "parrafos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "update-types": "npx supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" --schema public > src/database.types.ts",
+    "update-types:local": "npx supabase gen types typescript --local --schema public > src/database.types.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "supabase": ">=1.8.1",
+    "typescript": "^5.8.2"
+  }
+}
