@@ -2,10 +2,15 @@
 
 TypeScript library code and **Supabase** migrations for Parrafos: editorial **briefs** and **stories**, plus an extraction pipeline (**publishers**, **runs**, **articles**) with row-level security.
 
+This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
+
+> **Caution:** `supabase db push` applies migrations to the linked remote database. There is no local copy of the schema unless you add a separate staging project or use branches. Take backups or test risky changes on another project first.
+
 ## Prerequisites
 
 - **Node.js** (current LTS) and npm
-- **Docker Desktop** (or another Docker engine) for [local Supabase](https://supabase.com/docs/guides/local-development)
+- A **Supabase** project ([dashboard](https://supabase.com/dashboard))
+- [Supabase CLI](https://supabase.com/docs/guides/cli) via this repo’s devDependency (`npx supabase …`)
 
 ## Quick start
 
@@ -15,65 +20,49 @@ TypeScript library code and **Supabase** migrations for Parrafos: editorial **br
 npm install
 ```
 
-### 2. Environment variables
+### 2. Link the CLI to your hosted project
 
-Copy the example file and fill in values:
+One-time per machine (uses a [personal access token](https://supabase.com/dashboard/account/tokens)):
+
+```bash
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+```
+
+`project-ref` is the **Reference ID** under **Project Settings → General**.
+
+### 3. Environment variables
 
 ```bash
 cp .env.example .env
 ```
 
+Fill `.env` from **Project Settings → API**:
+
 | Variable | Purpose |
 | -------- | ------- |
-| `SUPABASE_URL` | Project API URL (`http://127.0.0.1:54321` locally, or `https://<ref>.supabase.co` in production) |
-| `SUPABASE_ANON_KEY` | Public **anon** key (browser and user-facing APIs; RLS applies) |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Service role** key — **server-side only** (workers, admin scripts; bypasses RLS). Never commit it or ship it to the client. |
-| `SUPABASE_PROJECT_REF` | Optional: project reference ID, for `npm run update-types` against a hosted project |
+| `SUPABASE_URL` | **Project URL** (e.g. `https://xxxxx.supabase.co`) |
+| `SUPABASE_ANON_KEY` | **anon public** key |
+| `SUPABASE_SERVICE_ROLE_KEY` | **service_role** key — **server-side only**; never commit or expose to browsers |
+| `SUPABASE_PROJECT_REF` | Same as the project ref you used in `supabase link`; required for `npm run update-types` |
 
-### 3. Local database (Docker)
+Your app and scripts read `SUPABASE_URL` and the keys at runtime from `.env` (see below).
 
-Start the stack (applies migrations and `supabase/seed.sql`):
+### 4. Apply database migrations (remote)
 
-```bash
-npx supabase start
-```
-
-Print credentials in `.env`-friendly form:
+After you link, push local SQL migrations in `supabase/migrations/` to the linked database:
 
 ```bash
-npx supabase status -o env
+npm run db:push
 ```
 
-Use **`API_URL`** as `SUPABASE_URL`, **`ANON_KEY`** as `SUPABASE_ANON_KEY`, and **`SERVICE_ROLE_KEY`** as `SUPABASE_SERVICE_ROLE_KEY` in your `.env`.
-
-Useful URLs:
-
-- **Studio** (table editor, SQL): http://127.0.0.1:54323  
-- **API**: http://127.0.0.1:54321  
-
-Stop local Supabase when finished:
+To add a new migration:
 
 ```bash
-npx supabase stop
+npx supabase migration new describe_your_change
 ```
 
-Reset the local DB and re-run all migrations from scratch:
-
-```bash
-npx supabase db reset
-```
-
-### 4. Hosted Supabase
-
-Create a project in the [Supabase dashboard](https://supabase.com/dashboard), then link the repo and push migrations:
-
-```bash
-npx supabase login
-npx supabase link --project-ref <your-project-ref>
-npx supabase db push
-```
-
-Set `SUPABASE_URL` and keys from **Project Settings → API**.
+Edit the generated file under `supabase/migrations/`, then run `npm run db:push` again.
 
 ## TypeScript
 
@@ -83,23 +72,15 @@ Set `SUPABASE_URL` and keys from **Project Settings → API**.
 npx tsc --noEmit
 ```
 
-### Regenerate DB types for `supabase-js`
+### Regenerate `database.types.ts` from the hosted schema
 
-Types should match the live schema. See [Generating TypeScript types](https://supabase.com/docs/guides/api/rest/generating-types).
-
-**Local** (requires `npx supabase start`):
-
-```bash
-npm run update-types:local
-```
-
-**Hosted project** (set `SUPABASE_PROJECT_REF` and authenticate with `npx supabase login`):
+Ensure `.env` exists (with `SUPABASE_PROJECT_REF`) and you are logged in (`npx supabase login`). The script loads `.env` via `dotenv-cli`. See [Generating TypeScript types](https://supabase.com/docs/guides/api/rest/generating-types).
 
 ```bash
 npm run update-types
 ```
 
-Output is written to `src/database.types.ts`. The Supabase helpers use `createClient<Database>(...)`.
+Output: `src/database.types.ts`. Use with `createClient<Database>(...)`.
 
 ## Using the Supabase clients
 
@@ -132,10 +113,10 @@ Do **not** import `createSupabaseServiceClient` (or the service env helpers) fro
 
 | Path | What it is |
 | ---- | ---------- |
-| `supabase/migrations/` | SQL migrations (schema + RLS) |
-| `supabase/seed.sql` | Optional seed data after `db reset` |
-| `supabase/config.toml` | Local Supabase CLI configuration |
-| `src/database.types.ts` | Generated (or hand-maintained) `Database` type for PostgREST |
+| `supabase/migrations/` | SQL migrations (schema + RLS), applied with `npm run db:push` |
+| `supabase/seed.sql` | Used only if you run a **local** `supabase db reset` (optional) |
+| `supabase/config.toml` | CLI defaults; linking stores remote connection metadata under `supabase/.temp/` (gitignored) |
+| `src/database.types.ts` | Generated `Database` type for PostgREST |
 | `src/lib/supabase/` | Thin typed wrappers around `@supabase/supabase-js` |
 
 ## Data model (short)
@@ -148,4 +129,18 @@ RLS: anonymous users can read **published** briefs and related stories; **authen
 
 ---
 
-More on the CLI: [Supabase CLI](https://supabase.com/docs/guides/cli).
+## Optional: local Supabase (Docker)
+
+If you want a throwaway database on your machine (e.g. to test migrations before pushing), install **Docker**, then:
+
+```bash
+npx supabase start
+npx supabase status -o env   # paste into a separate .env.local if you like
+npx supabase db reset       # replay migrations + seed locally
+npm run update-types:local  # types from local DB
+npx supabase stop
+```
+
+This does **not** replace the hosted workflow above unless you choose to point your app at local URLs.
+
+More: [Local development](https://supabase.com/docs/guides/local-development), [Supabase CLI](https://supabase.com/docs/guides/cli).
