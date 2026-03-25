@@ -8,6 +8,7 @@
 - `page.tsx`: publisher management dashboard.
 - `publisher-actions.ts`: create/update/delete publishers.
 - `runs/page.tsx` and `runs/run-actions.ts`: queue runs and inspect status.
+- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, article drill-down, and cancel control.
 - `login/*`: login/logout flow and session cookie management hooks.
 
 ## Key Contracts and Invariants
@@ -28,4 +29,5 @@
 
 ## Gotchas
 - `/admin/runs` queues work only; it does not execute extraction itself.
+- `/admin/runs/[runId]` uses polling (not subscriptions), so UI freshness depends on server-side run metadata updates.
 - Do not bypass auth checks in actions even if middleware protects routes.

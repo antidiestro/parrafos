@@ -5,17 +5,11 @@ import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
 import { cleanHtmlForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import { RUN_MODEL } from "@/lib/runs/constants";
+import {
+  createInitialRunMetadata,
+  type RunMetadata,
+} from "@/lib/runs/progress";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-
-type RunError = { publisher_id?: string; url?: string; message: string };
-type RunMetadata = {
-  model: string;
-  publisher_count: number;
-  publishers_done: number;
-  articles_found: number;
-  articles_upserted: number;
-  errors: RunError[];
-};
 
 type ExtractedArticle = {
   sourceUrl: string;
@@ -42,17 +36,6 @@ const articleDetailsSchema = z.object({
   published_at: z.string().trim().min(1).nullable().optional(),
   body_text: z.string().trim().min(1),
 });
-
-function createInitialMetadata(): RunMetadata {
-  return {
-    model: RUN_MODEL,
-    publisher_count: 0,
-    publishers_done: 0,
-    articles_found: 0,
-    articles_upserted: 0,
-    errors: [],
-  };
-}
 
 function toCanonicalUrl(raw: string, baseUrl: string): string | null {
   try {
@@ -119,7 +102,7 @@ async function mapWithConcurrency<T, R>(
 async function updateRunProgress(
   runId: string,
   patch: {
-    status?: "running" | "completed" | "failed";
+    status?: "running" | "completed" | "failed" | "cancelled";
     ended_at?: string;
     error_message?: string | null;
     metadata: RunMetadata;
@@ -135,6 +118,19 @@ async function updateRunProgress(
       metadata: patch.metadata as Json,
     })
     .eq("id", runId);
+}
+
+async function isRunCancelled(runId: string): Promise<boolean> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("runs")
+    .select("status")
+    .eq("id", runId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data?.status === "cancelled";
 }
 
 async function extractArticleUrls(
@@ -186,7 +182,7 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
   }
   if (!pending) return null;
 
-  const metadata = createInitialMetadata();
+  const metadata = createInitialRunMetadata();
   const { data: claimed, error: claimError } = await supabase
     .from("runs")
     .update({
@@ -207,15 +203,38 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
 
 export async function processRun(runId: string): Promise<void> {
   const supabase = createSupabaseServiceClient();
-  const metadata = createInitialMetadata();
+  const metadata = createInitialRunMetadata();
   const extractConcurrency = getExtractConcurrency();
   try {
     const publishers = await listPublishers();
     metadata.publisher_count = publishers.length;
+    metadata.publishers = publishers.map((publisher) => ({
+      publisher_id: publisher.id,
+      publisher_name: publisher.name,
+      base_url: publisher.base_url,
+      status: "pending",
+      articles_found: 0,
+      articles_upserted: 0,
+      error_message: null,
+    }));
     await updateRunProgress(runId, { metadata });
+    if (await isRunCancelled(runId)) {
+      return;
+    }
 
     for (const publisher of publishers) {
+      if (await isRunCancelled(runId)) {
+        return;
+      }
+      const publisherProgress = metadata.publishers.find(
+        (entry) => entry.publisher_id === publisher.id,
+      );
       try {
+        if (publisherProgress) {
+          publisherProgress.status = "running";
+          publisherProgress.error_message = null;
+          await updateRunProgress(runId, { metadata });
+        }
         const home = await fetchHtmlWithRetries(publisher.base_url, {
           retries: 0,
         });
@@ -233,11 +252,37 @@ export async function processRun(runId: string): Promise<void> {
         ).slice(0, 20);
 
         metadata.articles_found += normalizedUrls.length;
+        if (publisherProgress) {
+          publisherProgress.articles_found = normalizedUrls.length;
+        }
+        metadata.articles.push(
+          ...normalizedUrls.map((url) => ({
+            publisher_id: publisher.id,
+            url,
+            canonical_url: null,
+            title: null,
+            status: "pending" as const,
+            error_message: null,
+          })),
+        );
+        await updateRunProgress(runId, { metadata });
 
         const extractedArticles = await mapWithConcurrency(
           normalizedUrls,
           extractConcurrency,
           async (articleUrl): Promise<ExtractedArticle | null> => {
+            if (await isRunCancelled(runId)) {
+              return null;
+            }
+            const articleProgress = metadata.articles.find(
+              (entry) =>
+                entry.publisher_id === publisher.id && entry.url === articleUrl,
+            );
+            if (articleProgress) {
+              articleProgress.status = "fetching";
+              articleProgress.error_message = null;
+              await updateRunProgress(runId, { metadata });
+            }
             try {
               const articleRes = await fetchHtmlWithRetries(articleUrl, {
                 retries: 0,
@@ -252,6 +297,12 @@ export async function processRun(runId: string): Promise<void> {
                   details.canonical_url ?? articleRes.finalUrl,
                   articleRes.finalUrl,
                 ) ?? articleRes.finalUrl;
+              if (articleProgress) {
+                articleProgress.canonical_url = canonicalUrl;
+                articleProgress.title = details.title ?? null;
+                articleProgress.status = "extracted";
+                await updateRunProgress(runId, { metadata });
+              }
 
               return {
                 sourceUrl: articleRes.finalUrl,
@@ -261,6 +312,13 @@ export async function processRun(runId: string): Promise<void> {
                 publishedAt: toTimestampOrNull(details.published_at),
               };
             } catch (error) {
+              if (articleProgress) {
+                articleProgress.status = "failed";
+                articleProgress.error_message =
+                  error instanceof Error
+                    ? error.message
+                    : "Article extraction failed";
+              }
               metadata.errors.push({
                 publisher_id: publisher.id,
                 url: articleUrl,
@@ -269,12 +327,16 @@ export async function processRun(runId: string): Promise<void> {
                     ? error.message
                     : "Article extraction failed",
               });
+              await updateRunProgress(runId, { metadata });
               return null;
             }
           },
         );
 
         for (const article of extractedArticles) {
+          if (await isRunCancelled(runId)) {
+            return;
+          }
           if (!article) continue;
           try {
             const { error: upsertError } = await supabase
@@ -298,16 +360,48 @@ export async function processRun(runId: string): Promise<void> {
               throw new Error(upsertError.message);
             }
             metadata.articles_upserted += 1;
+            if (publisherProgress) {
+              publisherProgress.articles_upserted += 1;
+            }
+            const articleProgress = metadata.articles.find(
+              (entry) =>
+                entry.publisher_id === publisher.id &&
+                (entry.url === article.canonicalUrl ||
+                  entry.url === article.sourceUrl ||
+                  entry.canonical_url === article.canonicalUrl),
+            );
+            if (articleProgress) {
+              articleProgress.status = "upserted";
+            }
+            await updateRunProgress(runId, { metadata });
           } catch (error) {
+            const articleProgress = metadata.articles.find(
+              (entry) =>
+                entry.publisher_id === publisher.id &&
+                (entry.url === article.canonicalUrl ||
+                  entry.url === article.sourceUrl ||
+                  entry.canonical_url === article.canonicalUrl),
+            );
+            if (articleProgress) {
+              articleProgress.status = "failed";
+              articleProgress.error_message =
+                error instanceof Error ? error.message : "Article upsert failed";
+            }
             metadata.errors.push({
               publisher_id: publisher.id,
               url: article.sourceUrl,
               message:
                 error instanceof Error ? error.message : "Article upsert failed",
             });
+            await updateRunProgress(runId, { metadata });
           }
         }
       } catch (error) {
+        if (publisherProgress) {
+          publisherProgress.status = "failed";
+          publisherProgress.error_message =
+            error instanceof Error ? error.message : "Publisher crawl failed";
+        }
         metadata.errors.push({
           publisher_id: publisher.id,
           message:
@@ -315,6 +409,9 @@ export async function processRun(runId: string): Promise<void> {
         });
       } finally {
         metadata.publishers_done += 1;
+        if (publisherProgress && publisherProgress.status === "running") {
+          publisherProgress.status = "completed";
+        }
         await updateRunProgress(runId, { metadata });
       }
     }

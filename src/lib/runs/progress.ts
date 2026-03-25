@@ -1,0 +1,155 @@
+import type { Json } from "@/database.types";
+import { RUN_MODEL } from "@/lib/runs/constants";
+
+export type RunError = { publisher_id?: string; url?: string; message: string };
+
+export type RunPublisherStatus = "pending" | "running" | "completed" | "failed";
+export type RunArticleStatus =
+  | "pending"
+  | "fetching"
+  | "extracted"
+  | "upserted"
+  | "failed";
+
+export type RunPublisherProgress = {
+  publisher_id: string;
+  publisher_name: string;
+  base_url: string;
+  status: RunPublisherStatus;
+  articles_found: number;
+  articles_upserted: number;
+  error_message: string | null;
+};
+
+export type RunArticleProgress = {
+  publisher_id: string;
+  url: string;
+  canonical_url: string | null;
+  title: string | null;
+  status: RunArticleStatus;
+  error_message: string | null;
+};
+
+export type RunMetadata = {
+  model: string;
+  publisher_count: number;
+  publishers_done: number;
+  articles_found: number;
+  articles_upserted: number;
+  errors: RunError[];
+  publishers: RunPublisherProgress[];
+  articles: RunArticleProgress[];
+};
+
+export function createInitialRunMetadata(): RunMetadata {
+  return {
+    model: RUN_MODEL,
+    publisher_count: 0,
+    publishers_done: 0,
+    articles_found: 0,
+    articles_upserted: 0,
+    errors: [],
+    publishers: [],
+    articles: [],
+  };
+}
+
+function isRunError(value: unknown): value is RunError {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { message?: unknown };
+  return typeof candidate.message === "string";
+}
+
+function normalizePublisher(value: unknown): RunPublisherProgress | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.publisher_id !== "string" ||
+    typeof row.publisher_name !== "string" ||
+    typeof row.base_url !== "string"
+  ) {
+    return null;
+  }
+  const status = row.status;
+  const isValidStatus =
+    status === "pending" ||
+    status === "running" ||
+    status === "completed" ||
+    status === "failed";
+  if (!isValidStatus) return null;
+
+  return {
+    publisher_id: row.publisher_id,
+    publisher_name: row.publisher_name,
+    base_url: row.base_url,
+    status,
+    articles_found:
+      typeof row.articles_found === "number" ? row.articles_found : 0,
+    articles_upserted:
+      typeof row.articles_upserted === "number" ? row.articles_upserted : 0,
+    error_message:
+      typeof row.error_message === "string" ? row.error_message : null,
+  };
+}
+
+function normalizeArticle(value: unknown): RunArticleProgress | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.publisher_id !== "string" || typeof row.url !== "string") {
+    return null;
+  }
+  const status = row.status;
+  const isValidStatus =
+    status === "pending" ||
+    status === "fetching" ||
+    status === "extracted" ||
+    status === "upserted" ||
+    status === "failed";
+  if (!isValidStatus) return null;
+
+  return {
+    publisher_id: row.publisher_id,
+    url: row.url,
+    canonical_url:
+      typeof row.canonical_url === "string" ? row.canonical_url : null,
+    title: typeof row.title === "string" ? row.title : null,
+    status,
+    error_message:
+      typeof row.error_message === "string" ? row.error_message : null,
+  };
+}
+
+export function parseRunMetadata(value: Json | null): RunMetadata {
+  const fallback = createInitialRunMetadata();
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
+
+  const row = value as Record<string, unknown>;
+  const errors = Array.isArray(row.errors) ? row.errors.filter(isRunError) : [];
+  const publishers = Array.isArray(row.publishers)
+    ? row.publishers
+        .map((entry) => normalizePublisher(entry))
+        .filter((entry): entry is RunPublisherProgress => Boolean(entry))
+    : [];
+  const articles = Array.isArray(row.articles)
+    ? row.articles
+        .map((entry) => normalizeArticle(entry))
+        .filter((entry): entry is RunArticleProgress => Boolean(entry))
+    : [];
+
+  return {
+    model: typeof row.model === "string" ? row.model : fallback.model,
+    publisher_count:
+      typeof row.publisher_count === "number" ? row.publisher_count : 0,
+    publishers_done:
+      typeof row.publishers_done === "number" ? row.publishers_done : 0,
+    articles_found:
+      typeof row.articles_found === "number" ? row.articles_found : 0,
+    articles_upserted:
+      typeof row.articles_upserted === "number" ? row.articles_upserted : 0,
+    errors,
+    publishers,
+    articles,
+  };
+}

@@ -8,9 +8,11 @@
   - `claimNextPendingRun()`: atomically claims one `runs` row from `pending` to `running`.
   - `processRun(runId)`: processes all publishers, extracts article links/details, and upserts `articles`.
 - `constants.ts`: run model defaults used in metadata and extraction.
+- `progress.ts`: shared metadata types and parsing helpers for run-progress read models/UI.
 
 ## Run Lifecycle Contract
 - Status progression: `pending` -> `running` -> `completed` or `failed`.
+- Runs may be set to `cancelled` by admin actions while pending/running.
 - Metadata fields tracked during execution:
   - `model`
   - `publisher_count`
@@ -18,7 +20,10 @@
   - `articles_found`
   - `articles_upserted`
   - `errors[]`
-- Progress updates are persisted after each publisher attempt.
+  - `publishers[]` per-publisher status and counters
+  - `articles[]` per-article extraction/upsert status snapshots
+- Progress updates are persisted during publisher and article processing so admin polling can show near-real-time state.
+- The worker checks for cancellation throughout processing and exits early without forcing `completed`/`failed` when a run is cancelled.
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.

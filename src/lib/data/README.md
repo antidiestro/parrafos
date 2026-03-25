@@ -6,7 +6,7 @@
 ## Key Files
 - `briefs.ts`: latest published brief + ordered stories bundle.
 - `publishers.ts`: list configured publishers.
-- `runs.ts`: list recent runs.
+- `runs.ts`: list recent runs and load run detail payloads for admin progress views.
 
 ## Contracts and Invariants
 - Query helpers throw on Supabase errors instead of returning partial failure objects.
@@ -15,6 +15,7 @@
   - briefs by `published_at`/`created_at`
   - publishers by `name`
   - runs by `started_at desc`
+- Run detail helpers (`getRunById`, `listRunArticles`, `getRunDetailPayload`) normalize run metadata for UI/API consumers.
 
 ## Common Changes
 - Add a new read model: create a new file in `data/` and keep output shape typed.

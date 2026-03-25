@@ -80,7 +80,12 @@ export default async function AdminRunsPage() {
                   return (
                     <tr key={run.id} className="align-top">
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-900">
-                        {formatTime(run.started_at)}
+                        <Link
+                          href={`/admin/runs/${run.id}`}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {formatTime(run.started_at)}
+                        </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-500">
                         {formatTime(run.ended_at)}
