@@ -9,11 +9,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "worker:runs": "dotenv -e .env -- tsx src/scripts/run-worker.ts"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
     "@supabase/supabase-js": "^2.49.1",
+    "cheerio": "^1.2.0",
     "next": "^16.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -33,6 +35,7 @@
     "eslint-config-next": "^16.2.1",
     "supabase": ">=1.8.1",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

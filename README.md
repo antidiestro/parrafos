@@ -6,6 +6,8 @@ A **Next.js** app in `src/app` reads the database with **server-only** Supabase 
 
 This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
 
+The `/admin/runs` page only **queues** runs. A worker process must be running to execute queued runs.
+
 > **Caution:** `supabase db push` applies migrations to the linked remote database. There is no local copy of the schema unless you add a separate staging project or use branches. Take backups or test risky changes on another project first.
 
 ## Prerequisites
@@ -89,6 +91,20 @@ npm run update-types
 ```
 
 Output: `src/database.types.ts`. Use with `createClient<Database>(...)`.
+
+## Runs worker
+
+Queue runs in `/admin/runs`, then execute them with:
+
+```bash
+npm run worker:runs
+```
+
+Run a single queued job and exit:
+
+```bash
+npm run worker:runs -- --once
+```
 
 ## Using the Supabase clients
 
