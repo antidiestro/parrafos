@@ -2,6 +2,8 @@
 
 TypeScript library code and **Supabase** migrations for Parrafos: editorial **briefs** and **stories**, plus an extraction pipeline (**publishers**, **runs**, **articles**) with row-level security.
 
+A **Next.js** app in `src/app` reads the database with **server-only** Supabase (`SUPABASE_SERVICE_ROLE_KEY`); the public homepage shows the latest published brief, and **/admin** (guarded by `ADMIN_PASSWORD` + `ADMIN_SESSION_SECRET` in `.env`) manages publishers.
+
 This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
 
 > **Caution:** `supabase db push` applies migrations to the linked remote database. There is no local copy of the schema unless you add a separate staging project or use branches. Take backups or test risky changes on another project first.
@@ -18,6 +20,12 @@ This repo is set up to **develop against your hosted Supabase project** (e.g. pr
 
 ```bash
 npm install
+```
+
+Run the web app locally (after `.env` is filled, including admin vars):
+
+```bash
+npm run dev
 ```
 
 ### 2. Link the CLI to your hosted project
