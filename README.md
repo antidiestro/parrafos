@@ -135,13 +135,27 @@ Do **not** import `createSupabaseServiceClient` (or the service env helpers) fro
 
 ## Repository layout
 
+This is a lightweight map of where most changes should go:
+
 | Path | What it is |
 | ---- | ---------- |
+| `src/app/` | Next.js routes and handlers (public homepage, admin pages, API routes) |
+| `src/app/admin/` | Admin UI + server actions for publisher CRUD and run queueing |
+| `src/lib/` | Shared server-side domain logic (data access, auth, runs, extract, integrations) |
+| `src/lib/data/` | Query helpers used by pages/admin (`briefs`, `publishers`, `runs`) |
+| `src/lib/auth/` | Admin session token creation/verification and server guard helpers |
+| `src/lib/runs/` | Run orchestration pipeline (claim pending run, process publishers/articles) |
+| `src/lib/extract/` | HTTP fetch/retry/size guards and HTML cleaning for model input |
+| `src/lib/gemini/` | Gemini client/env wrappers and text/JSON generation helpers |
+| `src/lib/supabase/` | Typed Supabase client/env helpers (anon + service role) |
+| `src/scripts/` | Operational scripts (currently the runs worker entrypoint) |
+| `src/database.types.ts` | Generated `Database` type for PostgREST |
 | `supabase/migrations/` | SQL migrations (schema + RLS), applied with `npm run db:push` |
 | `supabase/seed.sql` | Used only if you run a **local** `supabase db reset` (optional) |
-| `supabase/config.toml` | CLI defaults; linking stores remote connection metadata under `supabase/.temp/` (gitignored) |
-| `src/database.types.ts` | Generated `Database` type for PostgREST |
-| `src/lib/supabase/` | Thin typed wrappers around `@supabase/supabase-js` |
+| `supabase/config.toml` | CLI defaults; linking stores remote metadata under `supabase/.temp/` (gitignored) |
+| `AGENTS.md` + nested `*/AGENTS.md` | Agent routing/instructions and documentation maintenance policy |
+
+If you are unsure where to start, read root `AGENTS.md` and the nearest co-located `README.md` in the subtree you plan to edit.
 
 ## Data model (short)
 

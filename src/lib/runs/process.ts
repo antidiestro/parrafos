@@ -50,7 +50,15 @@ function toCanonicalUrl(raw: string, baseUrl: string): string | null {
   try {
     const url = new URL(raw, baseUrl);
     url.hash = "";
-    const removable = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"];
+    const removable = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "fbclid",
+      "gclid",
+    ];
     for (const key of removable) {
       url.searchParams.delete(key);
     }
@@ -69,7 +77,12 @@ function toTimestampOrNull(value: string | null | undefined): string | null {
 
 async function updateRunProgress(
   runId: string,
-  patch: { status?: "running" | "completed" | "failed"; ended_at?: string; error_message?: string | null; metadata: RunMetadata },
+  patch: {
+    status?: "running" | "completed" | "failed";
+    ended_at?: string;
+    error_message?: string | null;
+    metadata: RunMetadata;
+  },
 ) {
   const supabase = createSupabaseServiceClient();
   await supabase
@@ -83,11 +96,14 @@ async function updateRunProgress(
     .eq("id", runId);
 }
 
-async function extractArticleUrls(homeUrl: string, cleanedHtml: string): Promise<{ title?: string; url: string }[]> {
+async function extractArticleUrls(
+  homeUrl: string,
+  cleanedHtml: string,
+): Promise<{ title?: string; url: string }[]> {
   const result = await generateGeminiJson(
     [
       "You extract article links from a publisher homepage.",
-      "Return JSON object: {\"articles\":[{\"title\":\"...\",\"url\":\"...\"}]}",
+      'Return JSON object: {"articles":[{"title":"...","url":"..."}]}',
       "Only include news article URLs, at most 20 items.",
       `Homepage URL: ${homeUrl}`,
       "HTML:",
@@ -160,7 +176,10 @@ export async function processRun(runId: string): Promise<void> {
       try {
         const home = await fetchHtmlWithRetries(publisher.base_url);
         const cleanedHomeHtml = cleanHtmlForLLM(home.html);
-        const candidates = await extractArticleUrls(publisher.base_url, cleanedHomeHtml);
+        const candidates = await extractArticleUrls(
+          publisher.base_url,
+          cleanedHomeHtml,
+        );
         const normalizedUrls = Array.from(
           new Set(
             candidates
@@ -175,26 +194,33 @@ export async function processRun(runId: string): Promise<void> {
           try {
             const articleRes = await fetchHtmlWithRetries(articleUrl);
             const cleanedArticleHtml = cleanHtmlForLLM(articleRes.html);
-            const details = await extractArticleDetails(articleRes.finalUrl, cleanedArticleHtml);
-            const canonicalUrl =
-              toCanonicalUrl(details.canonical_url ?? articleRes.finalUrl, articleRes.finalUrl) ??
-              articleRes.finalUrl;
-
-            const { error: upsertError } = await supabase.from("articles").upsert(
-              {
-                publisher_id: publisher.id,
-                run_id: runId,
-                canonical_url: canonicalUrl,
-                title: details.title ?? null,
-                body_text: details.body_text,
-                published_at: toTimestampOrNull(details.published_at),
-                metadata: {
-                  source_url: articleRes.finalUrl,
-                  model: RUN_MODEL,
-                },
-              },
-              { onConflict: "publisher_id,canonical_url" },
+            const details = await extractArticleDetails(
+              articleRes.finalUrl,
+              cleanedArticleHtml,
             );
+            const canonicalUrl =
+              toCanonicalUrl(
+                details.canonical_url ?? articleRes.finalUrl,
+                articleRes.finalUrl,
+              ) ?? articleRes.finalUrl;
+
+            const { error: upsertError } = await supabase
+              .from("articles")
+              .upsert(
+                {
+                  publisher_id: publisher.id,
+                  run_id: runId,
+                  canonical_url: canonicalUrl,
+                  title: details.title ?? null,
+                  body_text: details.body_text,
+                  published_at: toTimestampOrNull(details.published_at),
+                  metadata: {
+                    source_url: articleRes.finalUrl,
+                    model: RUN_MODEL,
+                  },
+                },
+                { onConflict: "publisher_id,canonical_url" },
+              );
             if (upsertError) {
               throw new Error(upsertError.message);
             }
@@ -203,14 +229,18 @@ export async function processRun(runId: string): Promise<void> {
             metadata.errors.push({
               publisher_id: publisher.id,
               url: articleUrl,
-              message: error instanceof Error ? error.message : "Article extraction failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Article extraction failed",
             });
           }
         }
       } catch (error) {
         metadata.errors.push({
           publisher_id: publisher.id,
-          message: error instanceof Error ? error.message : "Publisher crawl failed",
+          message:
+            error instanceof Error ? error.message : "Publisher crawl failed",
         });
       } finally {
         metadata.publishers_done += 1;
