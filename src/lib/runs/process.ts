@@ -17,6 +17,14 @@ type RunMetadata = {
   errors: RunError[];
 };
 
+type ExtractedArticle = {
+  sourceUrl: string;
+  canonicalUrl: string;
+  title: string | null;
+  bodyText: string;
+  publishedAt: string | null;
+};
+
 const articleListSchema = z.object({
   articles: z
     .array(
@@ -73,6 +81,39 @@ function toTimestampOrNull(value: string | null | undefined): string | null {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
+}
+
+function getExtractConcurrency(): number {
+  const raw = process.env.RUN_EXTRACT_CONCURRENCY;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 5;
+  }
+  return Math.min(parsed, 20);
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= items.length) {
+        return;
+      }
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 async function updateRunProgress(
@@ -167,6 +208,7 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
 export async function processRun(runId: string): Promise<void> {
   const supabase = createSupabaseServiceClient();
   const metadata = createInitialMetadata();
+  const extractConcurrency = getExtractConcurrency();
   try {
     const publishers = await listPublishers();
     metadata.publisher_count = publishers.length;
@@ -174,7 +216,9 @@ export async function processRun(runId: string): Promise<void> {
 
     for (const publisher of publishers) {
       try {
-        const home = await fetchHtmlWithRetries(publisher.base_url);
+        const home = await fetchHtmlWithRetries(publisher.base_url, {
+          retries: 0,
+        });
         const cleanedHomeHtml = cleanHtmlForLLM(home.html);
         const candidates = await extractArticleUrls(
           publisher.base_url,
@@ -190,32 +234,61 @@ export async function processRun(runId: string): Promise<void> {
 
         metadata.articles_found += normalizedUrls.length;
 
-        for (const articleUrl of normalizedUrls) {
-          try {
-            const articleRes = await fetchHtmlWithRetries(articleUrl);
-            const cleanedArticleHtml = cleanHtmlForLLM(articleRes.html);
-            const details = await extractArticleDetails(
-              articleRes.finalUrl,
-              cleanedArticleHtml,
-            );
-            const canonicalUrl =
-              toCanonicalUrl(
-                details.canonical_url ?? articleRes.finalUrl,
+        const extractedArticles = await mapWithConcurrency(
+          normalizedUrls,
+          extractConcurrency,
+          async (articleUrl): Promise<ExtractedArticle | null> => {
+            try {
+              const articleRes = await fetchHtmlWithRetries(articleUrl, {
+                retries: 0,
+              });
+              const cleanedArticleHtml = cleanHtmlForLLM(articleRes.html);
+              const details = await extractArticleDetails(
                 articleRes.finalUrl,
-              ) ?? articleRes.finalUrl;
+                cleanedArticleHtml,
+              );
+              const canonicalUrl =
+                toCanonicalUrl(
+                  details.canonical_url ?? articleRes.finalUrl,
+                  articleRes.finalUrl,
+                ) ?? articleRes.finalUrl;
 
+              return {
+                sourceUrl: articleRes.finalUrl,
+                canonicalUrl,
+                title: details.title ?? null,
+                bodyText: details.body_text,
+                publishedAt: toTimestampOrNull(details.published_at),
+              };
+            } catch (error) {
+              metadata.errors.push({
+                publisher_id: publisher.id,
+                url: articleUrl,
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Article extraction failed",
+              });
+              return null;
+            }
+          },
+        );
+
+        for (const article of extractedArticles) {
+          if (!article) continue;
+          try {
             const { error: upsertError } = await supabase
               .from("articles")
               .upsert(
                 {
                   publisher_id: publisher.id,
                   run_id: runId,
-                  canonical_url: canonicalUrl,
-                  title: details.title ?? null,
-                  body_text: details.body_text,
-                  published_at: toTimestampOrNull(details.published_at),
+                  canonical_url: article.canonicalUrl,
+                  title: article.title,
+                  body_text: article.bodyText,
+                  published_at: article.publishedAt,
                   metadata: {
-                    source_url: articleRes.finalUrl,
+                    source_url: article.sourceUrl,
                     model: RUN_MODEL,
                   },
                 },
@@ -228,11 +301,9 @@ export async function processRun(runId: string): Promise<void> {
           } catch (error) {
             metadata.errors.push({
               publisher_id: publisher.id,
-              url: articleUrl,
+              url: article.sourceUrl,
               message:
-                error instanceof Error
-                  ? error.message
-                  : "Article extraction failed",
+                error instanceof Error ? error.message : "Article upsert failed",
             });
           }
         }

@@ -14,6 +14,7 @@
   - `status`
 - Non-HTML responses and oversized payloads are rejected.
 - `cleanHtmlForLLM` returns bounded text to reduce token/cost risk.
+- Retry behavior can be overridden by callers. Run orchestration (`src/lib/runs/process.ts`) explicitly sets `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
 
 ## Common Changes
 - Tuning crawl behavior: modify timeout/retry/max-bytes constants in `fetch.ts`.

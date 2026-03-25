@@ -25,6 +25,12 @@
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
 - Per-article failures are captured in metadata errors and do not abort the entire run.
 - Top-level fatal errors mark run as `failed`.
+- Extraction uses a staged flow per publisher:
+  1. fetch homepage and extract candidate links,
+  2. run article fetch + parse in parallel with bounded concurrency,
+  3. commit article upserts sequentially in input order.
+- Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`).
+- Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.
 
 ## Common Changes
 - Change extraction prompts/schemas: update `process.ts` and `src/lib/gemini/README.md`.
