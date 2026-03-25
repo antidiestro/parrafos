@@ -1,11 +1,25 @@
 import type { Json } from "@/database.types";
-import { RUN_MODEL } from "@/lib/runs/constants";
+import {
+  RUN_CLUSTER_MODEL,
+  RUN_EXTRACT_MODEL,
+  RUN_RELEVANCE_MODEL,
+  RUN_MODEL,
+} from "@/lib/runs/constants";
 
 export type RunError = { publisher_id?: string; url?: string; message: string };
 
 export type RunPublisherStatus = "pending" | "running" | "completed" | "failed";
 export type RunArticleStatus =
   | "pending"
+  | "identified"
+  | "approving"
+  | "approved"
+  | "rejected"
+  | "clustering"
+  | "clustered"
+  | "selected_for_extraction"
+  | "not_selected_for_extraction"
+  | "skipped_existing"
   | "fetching"
   | "extracted"
   | "upserted"
@@ -26,16 +40,27 @@ export type RunArticleProgress = {
   url: string;
   canonical_url: string | null;
   title: string | null;
+  published_at: string | null;
   status: RunArticleStatus;
   error_message: string | null;
 };
 
 export type RunMetadata = {
   model: string;
+  models?: {
+    identification: string;
+    clustering: string;
+    relevance_selection: string;
+    extraction: string;
+  };
   publisher_count: number;
   publishers_done: number;
   articles_found: number;
   articles_upserted: number;
+  clusters_total: number;
+  clusters_eligible: number;
+  clusters_selected: number;
+  sources_selected: number;
   errors: RunError[];
   publishers: RunPublisherProgress[];
   articles: RunArticleProgress[];
@@ -44,10 +69,20 @@ export type RunMetadata = {
 export function createInitialRunMetadata(): RunMetadata {
   return {
     model: RUN_MODEL,
+    models: {
+      identification: RUN_EXTRACT_MODEL,
+      clustering: RUN_CLUSTER_MODEL,
+      relevance_selection: RUN_RELEVANCE_MODEL,
+      extraction: RUN_EXTRACT_MODEL,
+    },
     publisher_count: 0,
     publishers_done: 0,
     articles_found: 0,
     articles_upserted: 0,
+    clusters_total: 0,
+    clusters_eligible: 0,
+    clusters_selected: 0,
+    sources_selected: 0,
     errors: [],
     publishers: [],
     articles: [],
@@ -101,6 +136,15 @@ function normalizeArticle(value: unknown): RunArticleProgress | null {
   const status = row.status;
   const isValidStatus =
     status === "pending" ||
+    status === "identified" ||
+    status === "approving" ||
+    status === "approved" ||
+    status === "rejected" ||
+    status === "clustering" ||
+    status === "clustered" ||
+    status === "selected_for_extraction" ||
+    status === "not_selected_for_extraction" ||
+    status === "skipped_existing" ||
     status === "fetching" ||
     status === "extracted" ||
     status === "upserted" ||
@@ -113,6 +157,7 @@ function normalizeArticle(value: unknown): RunArticleProgress | null {
     canonical_url:
       typeof row.canonical_url === "string" ? row.canonical_url : null,
     title: typeof row.title === "string" ? row.title : null,
+    published_at: typeof row.published_at === "string" ? row.published_at : null,
     status,
     error_message:
       typeof row.error_message === "string" ? row.error_message : null,
@@ -140,6 +185,23 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
 
   return {
     model: typeof row.model === "string" ? row.model : fallback.model,
+    models:
+      row.models &&
+      typeof row.models === "object" &&
+      !Array.isArray(row.models) &&
+      typeof (row.models as Record<string, unknown>).identification === "string" &&
+      typeof (row.models as Record<string, unknown>).clustering === "string" &&
+      typeof (row.models as Record<string, unknown>).relevance_selection ===
+        "string" &&
+      typeof (row.models as Record<string, unknown>).extraction === "string"
+        ? {
+            identification: (row.models as Record<string, string>).identification,
+            clustering: (row.models as Record<string, string>).clustering,
+            relevance_selection: (row.models as Record<string, string>)
+              .relevance_selection,
+            extraction: (row.models as Record<string, string>).extraction,
+          }
+        : fallback.models,
     publisher_count:
       typeof row.publisher_count === "number" ? row.publisher_count : 0,
     publishers_done:
@@ -148,6 +210,13 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
       typeof row.articles_found === "number" ? row.articles_found : 0,
     articles_upserted:
       typeof row.articles_upserted === "number" ? row.articles_upserted : 0,
+    clusters_total: typeof row.clusters_total === "number" ? row.clusters_total : 0,
+    clusters_eligible:
+      typeof row.clusters_eligible === "number" ? row.clusters_eligible : 0,
+    clusters_selected:
+      typeof row.clusters_selected === "number" ? row.clusters_selected : 0,
+    sources_selected:
+      typeof row.sources_selected === "number" ? row.sources_selected : 0,
     errors,
     publishers,
     articles,

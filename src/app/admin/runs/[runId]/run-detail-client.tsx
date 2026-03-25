@@ -32,14 +32,36 @@ function isTerminalStatus(status: string) {
 }
 
 function statusClass(status: string) {
-  if (status === "completed" || status === "upserted") {
+  if (
+    status === "completed" ||
+    status === "upserted" ||
+    status === "selected" ||
+    status === "selected_for_extraction"
+  ) {
     return "bg-green-100 text-green-800";
   }
   if (status === "failed") {
     return "bg-red-100 text-red-800";
   }
-  if (status === "running" || status === "fetching" || status === "extracted") {
+  if (
+    status === "running" ||
+    status === "fetching" ||
+    status === "extracted" ||
+    status === "clustering" ||
+    status === "clustered" ||
+    status === "eligible"
+  ) {
     return "bg-blue-100 text-blue-800";
+  }
+  if (
+    status === "not_selected" ||
+    status === "not_selected_for_extraction" ||
+    status === "discarded_low_sources"
+  ) {
+    return "bg-amber-100 text-amber-800";
+  }
+  if (status === "skipped_existing") {
+    return "bg-violet-100 text-violet-800";
   }
   return "bg-zinc-100 text-zinc-700";
 }
@@ -123,6 +145,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
   const publishersDone = data.metadata.publishers_done ?? 0;
   const publisherCount = data.metadata.publisher_count ?? 0;
   const percent = formatPercent(publishersDone, publisherCount);
+  const clusters = Array.isArray(data.clusters) ? data.clusters : [];
   const canCancel =
     data.run.status === "pending" || data.run.status === "running";
   const modalArticle = useMemo(() => {
@@ -205,6 +228,12 @@ export function RunDetailClient({ runId, initialData }: Props) {
           Articles found: {data.metadata.articles_found} - upserted:{" "}
           {data.metadata.articles_upserted}
         </p>
+        <p className="mt-1 text-sm text-zinc-600">
+          Story clusters: {data.metadata.clusters_total} - eligible:{" "}
+          {data.metadata.clusters_eligible} - selected:{" "}
+          {data.metadata.clusters_selected} - selected sources:{" "}
+          {data.metadata.sources_selected}
+        </p>
         <p className="mt-1 text-xs text-zinc-500">
           Started: {formatTime(data.run.started_at)} - Ended:{" "}
           {formatTime(data.run.ended_at)}
@@ -268,6 +297,64 @@ export function RunDetailClient({ runId, initialData }: Props) {
                     </td>
                     <td className="max-w-sm truncate px-4 py-3 text-zinc-600">
                       {publisher.error_message ?? "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Story clusters ({clusters.length})
+        </h2>
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+          <table className="w-full min-w-2xl text-left text-sm">
+            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <tr>
+                <th className="px-4 py-3">Story</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Sources</th>
+                <th className="px-4 py-3">Relevant sources</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {clusters.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                    No story clusters persisted yet.
+                  </td>
+                </tr>
+              ) : (
+                clusters.map((cluster) => (
+                  <tr key={cluster.id}>
+                    <td className="max-w-xl px-4 py-3">
+                      <div className="font-medium text-zinc-900">{cluster.title}</div>
+                      {cluster.summary ? (
+                        <div className="mt-0.5 line-clamp-2 text-xs text-zinc-600">
+                          {cluster.summary}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(cluster.status)}`}
+                      >
+                        {cluster.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-700">{cluster.source_count}</td>
+                    <td className="max-w-2xl px-4 py-3 text-xs text-zinc-700">
+                      {cluster.sources.length === 0
+                        ? "—"
+                        : cluster.sources
+                            .map(
+                              (source) =>
+                                `${source.publisher_name ?? source.publisher_id}: ${source.title ?? source.canonical_url}`,
+                            )
+                            .join(" | ")}
                     </td>
                   </tr>
                 ))
@@ -382,7 +469,10 @@ export function RunDetailClient({ runId, initialData }: Props) {
               </p>
               <p>
                 <span className="font-semibold text-zinc-900">Published at:</span>{" "}
-                {formatTime(modalArticle.stored?.published_at ?? null)}
+                {formatTime(
+                  modalArticle.stored?.published_at ??
+                    modalArticle.progress.published_at,
+                )}
               </p>
               <p className="wrap-break-word">
                 <span className="font-semibold text-zinc-900">Source URL:</span>{" "}

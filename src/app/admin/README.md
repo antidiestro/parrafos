@@ -8,7 +8,7 @@
 - `page.tsx`: publisher management dashboard.
 - `publisher-actions.ts`: create/update/delete publishers.
 - `runs/page.tsx` and `runs/run-actions.ts`: queue runs and inspect status.
-- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, article drill-down, and cancel control.
+- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, persisted story-cluster visibility, article drill-down, and cancel control.
 - `login/*`: login/logout flow and session cookie management hooks.
 
 ## Key Contracts and Invariants

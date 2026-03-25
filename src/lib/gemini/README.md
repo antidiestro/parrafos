@@ -14,6 +14,7 @@
 - Empty text responses throw.
 - JSON extraction:
   - appends strict JSON-only instruction
+  - can request native structured output mode (`application/json` + response schema)
   - strips optional markdown code fences
   - parses JSON and validates with Zod schema
 - Errors are surfaced with useful messages for caller-level handling.

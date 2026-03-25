@@ -23,6 +23,9 @@
 - Add/modify tables, enums, indexes, triggers in a new migration file.
 - Update policies with explicit intent comments in the migration itself.
 - Coordinate app/runtime changes with schema changes in the same PR.
+- Ingestion clustering persistence is stored in:
+  - `run_story_clusters` (story-level cluster rows per run),
+  - `run_story_cluster_sources` (source assignments per cluster with one-source-per-run uniqueness).
 
 ## Verification
 - Apply migration to target environment.

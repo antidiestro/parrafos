@@ -116,6 +116,105 @@ export type Database = {
         }
         Relationships: []
       }
+      run_story_cluster_sources: {
+        Row: {
+          canonical_url: string
+          cluster_id: string
+          created_at: string
+          published_at: string | null
+          publisher_id: string
+          run_id: string
+          title: string | null
+          url: string
+        }
+        Insert: {
+          canonical_url: string
+          cluster_id: string
+          created_at?: string
+          published_at?: string | null
+          publisher_id: string
+          run_id: string
+          title?: string | null
+          url: string
+        }
+        Update: {
+          canonical_url?: string
+          cluster_id?: string
+          created_at?: string
+          published_at?: string | null
+          publisher_id?: string
+          run_id?: string
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_story_cluster_sources_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "run_story_clusters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "run_story_cluster_sources_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "run_story_cluster_sources_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_story_clusters: {
+        Row: {
+          created_at: string
+          id: string
+          run_id: string
+          selection_reason: string | null
+          source_count: number
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          run_id: string
+          selection_reason?: string | null
+          source_count?: number
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          run_id?: string
+          selection_reason?: string | null
+          source_count?: number
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_story_clusters_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runs: {
         Row: {
           ended_at: string | null

@@ -6,8 +6,8 @@
 ## Key Files
 - `process.ts`
   - `claimNextPendingRun()`: atomically claims one `runs` row from `pending` to `running`.
-  - `processRun(runId)`: processes all publishers, extracts article links/details, and upserts `articles`.
-- `constants.ts`: run model defaults used in metadata and extraction.
+  - `processRun(runId)`: processes all publishers, clusters identified sources into stories, selects relevant clusters, and extracts/upserts selected article sources.
+- `constants.ts`: run model defaults used in identification, clustering, relevance selection, and extraction.
 - `progress.ts`: shared metadata types and parsing helpers for run-progress read models/UI.
 
 ## Run Lifecycle Contract
@@ -15,10 +15,15 @@
 - Runs may be set to `cancelled` by admin actions while pending/running.
 - Metadata fields tracked during execution:
   - `model`
+  - `models`
   - `publisher_count`
   - `publishers_done`
   - `articles_found`
   - `articles_upserted`
+  - `clusters_total`
+  - `clusters_eligible`
+  - `clusters_selected`
+  - `sources_selected`
   - `errors[]`
   - `publishers[]` per-publisher status and counters
   - `articles[]` per-article extraction/upsert status snapshots
@@ -27,13 +32,22 @@
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
+- Candidate identification attempts to include `title` and `published_at` alongside URL.
+- Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.
+- A source can be assigned to only one cluster per run.
+- Clusters with fewer than 3 sources are discarded before relevance selection.
+- Relevant stories are selected dynamically by model (up to a max cap).
+- Sources from selected stories that already exist in `articles` are skipped and not re-extracted.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
 - Per-article failures are captured in metadata errors and do not abort the entire run.
 - Top-level fatal errors mark run as `failed`.
-- Extraction uses a staged flow per publisher:
-  1. fetch homepage and extract candidate links,
-  2. run article fetch + parse in parallel with bounded concurrency,
-  3. commit article upserts sequentially in input order.
+- Extraction uses a staged flow:
+  1. fetch each homepage and identify candidate links,
+  2. cluster all identified sources into persisted story clusters,
+  3. discard clusters with too few sources and select relevant stories,
+  4. skip selected sources already present in DB,
+  5. run article fetch + parse in parallel with bounded concurrency,
+  6. commit article upserts sequentially in input order.
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`).
 - Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.
 

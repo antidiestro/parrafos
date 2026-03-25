@@ -4,7 +4,11 @@ import type { z } from "zod";
 
 export async function generateGeminiText(
   prompt: string,
-  opts?: { model?: string },
+  opts?: {
+    model?: string;
+    responseMimeType?: "application/json";
+    responseSchema?: unknown;
+  },
 ): Promise<string> {
   const ai = createGeminiClient();
   const model = opts?.model ?? getGeminiModel();
@@ -12,6 +16,13 @@ export async function generateGeminiText(
   const response = await ai.models.generateContent({
     model,
     contents: prompt,
+    config:
+      opts?.responseMimeType || opts?.responseSchema
+        ? {
+            responseMimeType: opts.responseMimeType,
+            responseSchema: opts.responseSchema,
+          }
+        : undefined,
   });
 
   // SDK shape can change; handle both `response.text` and `response.text()` safely.
@@ -37,11 +48,22 @@ function stripCodeFence(text: string): string {
 export async function generateGeminiJson<TSchema extends z.ZodTypeAny>(
   prompt: string,
   schema: TSchema,
-  opts?: { model?: string },
+  opts?: {
+    model?: string;
+    nativeStructuredOutput?: {
+      responseSchema: unknown;
+    };
+  },
 ): Promise<z.infer<TSchema>> {
   const text = await generateGeminiText(
     `${prompt}\n\nReturn only valid JSON that matches the requested shape.`,
-    opts,
+    {
+      model: opts?.model,
+      responseMimeType: opts?.nativeStructuredOutput
+        ? "application/json"
+        : undefined,
+      responseSchema: opts?.nativeStructuredOutput?.responseSchema,
+    },
   );
   const raw = stripCodeFence(text);
 
