@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Json } from "@/database.types";
 import { listPublishers } from "@/lib/data/publishers";
 import { getRunDetailPayload } from "@/lib/data/runs";
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
-import { cleanHtmlForLLM } from "@/lib/extract/html";
+import { cleanHtmlForLLM, cleanTextForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import {
   RUN_CLUSTER_MODEL,
@@ -97,7 +98,6 @@ const clusterSchema = z.object({
   stories: z.array(
     z.object({
       title: z.string().trim().min(1),
-      summary: z.string().trim().min(1).nullable().optional(),
       source_keys: z.array(z.string().trim().min(1)).min(1).max(100),
     }),
   ),
@@ -112,7 +112,6 @@ const clusterResponseJsonSchema = {
         type: "object",
         properties: {
           title: { type: "string" },
-          summary: { type: "string" },
           source_keys: { type: "array", items: { type: "string" } },
         },
         required: ["title", "source_keys"],
@@ -285,43 +284,67 @@ async function extractArticleUrls(
   return result.articles.slice(0, 20);
 }
 
-async function extractArticleDetails(url: string, cleanedHtml: string) {
+async function extractArticleDetails(
+  url: string,
+  cleanedText: string,
+  identifiedTitle: string | null,
+) {
   return generateGeminiJson(
     [
-      "Extract article details from this HTML.",
+      "Extract article details from this plain text.",
       "Return JSON object with keys: canonical_url, title, published_at, body_text.",
       "published_at must be ISO-8601 datetime when possible, else null.",
       "body_text must be the full article text, no summaries.",
+      identifiedTitle ? `Identified title hint: ${identifiedTitle}` : null,
       `Article URL: ${url}`,
-      "HTML:",
-      cleanedHtml,
-    ].join("\n"),
+      "Text:",
+      cleanedText,
+    ]
+      .filter(Boolean)
+      .join("\n"),
     articleDetailsSchema,
     { model: RUN_EXTRACT_MODEL },
   );
 }
 
 function sourceKeyFor(publisherId: string, canonicalUrl: string) {
-  return `${publisherId}::${canonicalUrl}`;
+  const digest = createHash("sha256")
+    .update(publisherId)
+    .update("\0")
+    .update(canonicalUrl)
+    .digest("hex")
+    .slice(0, 16);
+  return `s_${digest}`;
+}
+
+function buildStoryTitle(candidates: CandidateSource[]) {
+  const sorted = candidates.slice().sort((a, b) => {
+    if (a.publishedAt && b.publishedAt) {
+      return +new Date(b.publishedAt) - +new Date(a.publishedAt);
+    }
+    if (a.publishedAt && !b.publishedAt) return -1;
+    if (!a.publishedAt && b.publishedAt) return 1;
+    return a.url.localeCompare(b.url);
+  });
+  const titled = sorted.find((candidate) => candidate.title?.trim());
+  if (titled?.title) return titled.title.trim();
+  return "Untitled story cluster";
 }
 
 async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
   const input = candidates.map((candidate) => ({
     source_key: sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
-    publisher_id: candidate.publisherId,
-    publisher_name: candidate.publisherName,
-    url: candidate.url,
-    canonical_url: candidate.canonicalUrl,
+    publisher: candidate.publisherName,
     title: candidate.title,
-    published_at: candidate.publishedAt,
   }));
 
   const response = await generateGeminiJson(
     [
-      "Cluster these article sources into stories they are covering.",
+      "Group only clearly related sources into specific stories.",
       "Each source_key can appear in at most one story.",
-      "Use as many story clusters as needed to cover all available sources.",
-      "Return JSON object with key stories, each with title, optional summary, and source_keys.",
+      "Only group sources that describe one concrete event or development.",
+      "Leave uncertain sources unassigned.",
+      "Return JSON object: {\"stories\":[{\"title\":\"...\",\"source_keys\":[\"...\"]}]}",
       "Candidate sources:",
       JSON.stringify(input),
     ].join("\n"),
@@ -336,6 +359,18 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
 
   const availableKeys = new Set(
     candidates.map((c) => sourceKeyFor(c.publisherId, c.canonicalUrl)),
+  );
+  const publisherByKey = new Map(
+    candidates.map((candidate) => [
+      sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
+      candidate.publisherId,
+    ]),
+  );
+  const candidateByKey = new Map(
+    candidates.map((candidate) => [
+      sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
+      candidate,
+    ]),
   );
   const usedKeys = new Set<string>();
   const stories: { title: string; summary: string | null; sourceKeys: string[] }[] = [];
@@ -352,25 +387,26 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
       usedKeys.add(key);
       sourceKeys.push(key);
     }
-    if (sourceKeys.length > 0) {
+    const uniquePublishers = new Set(
+      sourceKeys
+        .map((key) => publisherByKey.get(key))
+        .filter((value): value is string => Boolean(value)),
+    );
+
+    if (
+      sourceKeys.length >= MIN_SOURCES_PER_CLUSTER &&
+      uniquePublishers.size >= MIN_SOURCES_PER_CLUSTER
+    ) {
+      const storyCandidates = sourceKeys
+        .map((key) => candidateByKey.get(key))
+        .filter((value): value is CandidateSource => Boolean(value));
+      const modelTitle = story.title.trim();
       stories.push({
-        title: story.title,
-        summary: story.summary ?? null,
+        title: modelTitle || buildStoryTitle(storyCandidates),
+        summary: null,
         sourceKeys,
       });
     }
-  }
-
-  // Ensure all sources belong to some story cluster.
-  for (const candidate of candidates) {
-    const key = sourceKeyFor(candidate.publisherId, candidate.canonicalUrl);
-    if (usedKeys.has(key)) continue;
-    usedKeys.add(key);
-    stories.push({
-      title: candidate.title ?? candidate.canonicalUrl,
-      summary: "Unclustered source fallback cluster.",
-      sourceKeys: [key],
-    });
   }
 
   return stories;
@@ -483,6 +519,7 @@ async function selectRelevantStories(clusters: PersistedCluster[]) {
       "Choose the most relevant stories for extraction.",
       `Return up to ${MAX_RELEVANT_STORIES} cluster IDs as selected_cluster_ids.`,
       "Focus on high-impact and broadly relevant stories.",
+      "Prefer selecting none over selecting weak or uncertain clusters.",
       "Stories:",
       JSON.stringify(input),
     ].join("\n"),
@@ -1189,10 +1226,11 @@ export async function processRun(runId: string): Promise<void> {
           const articleRes = await fetchHtmlWithRetries(candidate.url, {
             retries: 0,
           });
-          const cleanedArticleHtml = cleanHtmlForLLM(articleRes.html);
+          const cleanedArticleText = cleanTextForLLM(articleRes.html);
           const details = await extractArticleDetails(
             articleRes.finalUrl,
-            cleanedArticleHtml,
+            cleanedArticleText,
+            candidate.title,
           );
           const canonicalUrl =
             toCanonicalUrl(

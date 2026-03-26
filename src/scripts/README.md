@@ -5,6 +5,7 @@
 
 ## Key Files
 - `run-worker.ts`: claims queued runs and executes extraction pipeline continuously or once.
+- `evaluate-clustering.ts`: offline baseline-vs-precision clustering evaluator for multilingual candidate sets.
 
 ## Worker Behavior
 - `npm run worker:runs`: infinite polling loop (2s sleep when queue is empty).
@@ -18,6 +19,22 @@
 ## Common Changes
 - Polling cadence/runtime behavior: update `run-worker.ts`.
 - Extraction semantics: change `src/lib/runs` instead of this script.
+- Clustering quality evaluation workflow: update `evaluate-clustering.ts`.
+
+## Clustering Evaluation Harness
+- Command: `npm run eval:clustering -- --input <dataset.json> [--out <report.json>]`.
+- Dataset shape:
+  - root object with `samples`.
+  - each sample includes `sample_id` and `candidates[]`.
+  - each candidate includes at least `source_key`, `publisher_id`, and `url` (title/date hints optional).
+- The harness compares:
+  - baseline exhaustive clustering prompt,
+  - precision-first sparse clustering prompt.
+- Cluster quality uses model-based semantic judging (specific-story vs broad/mixed), so no lexical keyword matching assumptions are required across languages.
+- Output includes per-sample metrics and aggregate averages for:
+  - broad-cluster rate,
+  - specific-cluster rate,
+  - assigned coverage.
 
 ## Verification
 - Queue one run in admin, then execute `--once`.

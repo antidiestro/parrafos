@@ -40,9 +40,13 @@
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
 - Candidate identification attempts to include `title` and `published_at` alongside URL.
+- Article detail extraction sends plain text (not cleaned HTML) and passes the identified title as a hint to improve focus.
 - Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.
+- Clustering uses compact synthetic `source_key` values (stable short hashes) instead of raw URL-shaped identifiers to reduce prompt/response size.
+- Clustering is precision-first and sparse: uncertain sources may remain unclustered (no fallback singleton clusters).
 - A source can be assigned to only one cluster per run.
-- Clusters with fewer than 3 sources are discarded before relevance selection.
+- Cluster persistence uses a compact model contract (`title` + `source_keys`) and applies cross-publisher minimum support in code before persistence.
+- Persisted clusters with fewer than 3 sources are discarded before relevance selection.
 - Relevant stories are selected dynamically by model (up to a max cap).
 - Sources from selected stories that already exist in `articles` are skipped and not re-extracted.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
@@ -50,7 +54,7 @@
 - Top-level fatal errors mark run as `failed`.
 - Extraction uses a staged flow:
   1. fetch each homepage and identify candidate links,
-  2. cluster all identified sources into persisted story clusters,
+  2. identify specific story clusters from compact candidate inputs (allow unassigned uncertain sources),
   3. discard clusters with too few sources and select relevant stories,
   4. skip selected sources already present in DB,
   5. run article fetch + parse in parallel with bounded concurrency,
