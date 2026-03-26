@@ -2,10 +2,11 @@
 
 ## Purpose
 - Gemini integration wrapper for text generation and schema-validated JSON extraction.
+- LangSmith tracing is enabled through LangChain's Gemini wrapper (`wrapGemini`) in `client.ts`.
 
 ## Key Files
-- `client.ts`: creates `GoogleGenAI` with `GEMINI_API_KEY`.
-- `env.ts`: API key + default model lookup (`GEMINI_MODEL` override).
+- `client.ts`: creates and wraps `GoogleGenAI` with LangSmith tracing.
+- `env.ts`: API key + default model lookup (`GEMINI_MODEL` override) + LangSmith tracing metadata/tags.
 - `generate.ts`:
   - `generateGeminiText(prompt, opts)`
   - `generateGeminiJson(prompt, schema, opts)`
@@ -29,6 +30,12 @@
 - Exercise affected API route or worker flow.
 - `npm run lint`
 - `npx tsc --noEmit`
+
+## Environment for Tracing
+- `LANGSMITH_API_KEY`
+- `LANGSMITH_PROJECT` (optional, defaults to `default` if omitted by LangSmith)
+- `LANGSMITH_TRACING=true`
+- `LANGSMITH_GEMINI_TAGS` (optional comma-separated tags)
 
 ## Gotchas
 - Keep API key server-only.

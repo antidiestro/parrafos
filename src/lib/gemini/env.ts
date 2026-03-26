@@ -9,3 +9,23 @@ export function getGeminiApiKey(): string {
 export function getGeminiModel(): string {
   return process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 }
+
+type GeminiTracingExtra = {
+  tags?: string[];
+  metadata?: Record<string, string>;
+};
+
+export function getGeminiTracingExtra(): GeminiTracingExtra {
+  const extraTags = (process.env.LANGSMITH_GEMINI_TAGS ?? "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  return {
+    tags: ["gemini", ...extraTags],
+    metadata: {
+      integration: "google-genai",
+      module: "src/lib/gemini",
+    },
+  };
+}

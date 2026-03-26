@@ -55,6 +55,12 @@ Fill `.env` from **Project Settings → API**:
 | `SUPABASE_ANON_KEY` | **anon public** key |
 | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** key — **server-side only**; never commit or expose to browsers |
 | `SUPABASE_PROJECT_REF` | Same as the project ref you used in `supabase link`; required for `npm run update-types` |
+| `GEMINI_API_KEY` | Google AI Studio key for Gemini requests |
+| `GEMINI_MODEL` | Optional default Gemini model (defaults to `gemini-3-flash-preview`) |
+| `LANGSMITH_API_KEY` | LangSmith API key for Gemini trace ingestion |
+| `LANGSMITH_PROJECT` | Optional LangSmith project name (for trace organization) |
+| `LANGSMITH_TRACING` | Set to `true` to emit traces |
+| `LANGSMITH_GEMINI_TAGS` | Optional comma-separated tags added to Gemini traces |
 
 Your app and scripts read `SUPABASE_URL` and the keys at runtime from `.env` (see below).
 
