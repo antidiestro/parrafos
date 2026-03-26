@@ -15,7 +15,8 @@
   - briefs by `published_at`/`created_at`
   - publishers by `name`
   - runs by `started_at desc`
-- Run detail helpers (`getRunById`, `listRunArticles`, `getRunDetailPayload`) normalize run metadata for UI/API consumers. `getRunDetailPayload` also returns `briefArticleBodyKeys`: publisher/canonical keys with non-empty `articles.body_text` for selected-cluster sources (globally, like brief generation), so admin brief-retry eligibility matches the worker when sources were `skipped_existing`.
+- Run detail helpers (`getRunById`, `listRunArticles`, `getRunDetailPayload`) hydrate progress primarily from normalized workflow tables (`run_publishers_progress`, `run_articles_progress`, `run_errors`) and run summary columns, with `runs.metadata` as fallback.
+- `getRunDetailPayload` returns `briefArticleBodyKeys`: publisher/canonical keys with non-empty `articles.body_text` for selected-cluster sources (globally, like brief generation), so admin brief-retry eligibility matches the worker when sources were `skipped_existing`.
 
 ## Common Changes
 - Add a new read model: create a new file in `data/` and keep output shape typed.

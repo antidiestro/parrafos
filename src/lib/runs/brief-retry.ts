@@ -136,3 +136,62 @@ export function getBriefRetryAvailability(
 export function canRetryBriefGeneration(payload: RunDetailPayload): boolean {
   return getBriefRetryAvailability(payload).kind === "available";
 }
+
+export type FailedExtractionRetryAvailability =
+  | { kind: "available"; headline: string; candidateCount: number }
+  | { kind: "unavailable"; headline: string }
+  | { kind: "not_applicable"; headline: string };
+
+function hasBodyForSource(
+  bodyKeys: Set<string>,
+  publisherId: string,
+  canonicalUrl: string,
+) {
+  return bodyKeys.has(articleBodyLookupKey(publisherId, canonicalUrl));
+}
+
+export function getFailedExtractionRetryAvailability(
+  payload: RunDetailPayload,
+): FailedExtractionRetryAvailability {
+  if (payload.run.status !== "failed") {
+    return {
+      kind: "not_applicable",
+      headline: "Extraction retry is only available for failed runs.",
+    };
+  }
+
+  const selectedSources = payload.clusters
+    .filter((cluster) => cluster.status === "selected")
+    .flatMap((cluster) => cluster.sources);
+  if (selectedSources.length === 0) {
+    return {
+      kind: "unavailable",
+      headline:
+        "No selected story-cluster sources are available to retry extraction for this run.",
+    };
+  }
+
+  const bodyKeys = buildArticleBodyKeySet(payload);
+  const candidateCount = selectedSources.filter(
+    (source) =>
+      !hasBodyForSource(bodyKeys, source.publisher_id, source.canonical_url),
+  ).length;
+
+  if (candidateCount <= 0) {
+    return {
+      kind: "unavailable",
+      headline:
+        "All selected story sources already have usable article body text.",
+    };
+  }
+
+  return {
+    kind: "available",
+    headline: `Extraction retry is available for ${candidateCount} selected source(s) still missing usable body text.`,
+    candidateCount,
+  };
+}
+
+export function canRetryFailedExtractions(payload: RunDetailPayload): boolean {
+  return getFailedExtractionRetryAvailability(payload).kind === "available";
+}

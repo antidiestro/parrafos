@@ -9,8 +9,10 @@
 
 ## Worker Behavior
 - `npm run worker:runs`: infinite polling loop (2s sleep when queue is empty).
+- `npm run worker:runs:watch`: same worker loop, auto-restarts when relevant source files change.
 - `npm run worker:runs -- --once`: claim and process at most one pending run, then exit.
 - Delegates actual run logic to `src/lib/runs/process.ts`.
+- During processing, run stage attempts are persisted in `run_stage_executions` and mirrored into `runs.current_stage`/`runs.stage_attempt`.
 
 ## Logging
 - Worker-level logs are emitted via `console.log` with the prefix `[worker:runs]`.
@@ -39,6 +41,7 @@
 ## Verification
 - Queue one run in admin, then execute `--once`.
 - Confirm process exits cleanly and run status transitions in DB.
+- Confirm normalized progress tables are updated while run is active (`run_publishers_progress`, `run_articles_progress`, `run_errors`, `run_events`).
 
 ## Gotchas
 - This script assumes `.env` is loaded by package script (`dotenv -e .env -- ...`).

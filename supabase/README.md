@@ -26,6 +26,14 @@
 - Ingestion clustering persistence is stored in:
   - `run_story_clusters` (story-level cluster rows per run),
   - `run_story_cluster_sources` (source assignments per cluster with one-source-per-run uniqueness).
+- Run workflow state persistence is split across:
+  - `runs` summary/model/stage columns,
+  - `run_stage_executions` (per-stage attempts),
+  - `run_publishers_progress`,
+  - `run_articles_progress`,
+  - `run_errors`,
+  - `run_events`.
+- `articles` stores extraction attribution in first-class columns: `source_url`, `extraction_model`, `clustering_model`, `relevance_selection_model`.
 
 ## Verification
 - Apply migration to target environment.

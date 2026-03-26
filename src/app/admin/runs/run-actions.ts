@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/auth/require-admin";
-import { retryBriefGenerationForFailedRun } from "@/lib/runs/process";
+import {
+  retryBriefGenerationForFailedRun,
+  retryFailedExtractionsForFailedRun,
+} from "@/lib/runs/process";
+import {
+  RUN_CLUSTER_MODEL,
+  RUN_EXTRACT_MODEL,
+  RUN_RELEVANCE_MODEL,
+} from "@/lib/runs/constants";
 import { createInitialRunMetadata } from "@/lib/runs/progress";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
@@ -23,6 +31,9 @@ export async function startRunAction(
 
   const { error } = await supabase.from("runs").insert({
     status: "pending",
+    extract_model: RUN_EXTRACT_MODEL,
+    cluster_model: RUN_CLUSTER_MODEL,
+    relevance_model: RUN_RELEVANCE_MODEL,
     metadata: createInitialRunMetadata(),
   });
 
@@ -48,6 +59,28 @@ export async function retryBriefGenerationAction(
   revalidatePath(`/admin/runs/${runId}`);
   revalidatePath("/");
   return { success: "Brief published; run marked completed." };
+}
+
+export async function retryFailedExtractionsAction(
+  runId: string,
+): Promise<RunActionState> {
+  await requireAdminSession();
+  try {
+    const result = await retryFailedExtractionsForFailedRun(runId);
+    revalidatePath("/admin/runs");
+    revalidatePath(`/admin/runs/${runId}`);
+    revalidatePath("/");
+    if (result.briefPublished) {
+      return {
+        success: `Retried ${result.retriedCount} source extraction(s) missing usable body text, recovered ${result.succeededCount}, and published brief.`,
+      };
+    }
+    return {
+      success: `Retried ${result.retriedCount} source extraction(s) missing usable body text. Recovered ${result.succeededCount}; ${result.failedCount} still failed. Brief is still unavailable for this run.`,
+    };
+  } catch (error) {
+    return { error: errorToMessage(error) };
+  }
 }
 
 export async function cancelRunAction(runId: string): Promise<RunActionState> {

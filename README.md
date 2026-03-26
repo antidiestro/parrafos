@@ -30,6 +30,12 @@ Run the web app locally (after `.env` is filled, including admin vars):
 npm run dev
 ```
 
+Run web app + runs worker together in development (worker restarts on code changes):
+
+```bash
+npm run dev:all
+```
+
 ### 2. Link the CLI to your hosted project
 
 One-time per machine (uses a [personal access token](https://supabase.com/dashboard/account/tokens)):
@@ -104,6 +110,12 @@ Queue runs in `/admin/runs`, then execute them with:
 
 ```bash
 npm run worker:runs
+```
+
+Auto-restart worker when files change:
+
+```bash
+npm run worker:runs:watch
 ```
 
 Run a single queued job and exit:

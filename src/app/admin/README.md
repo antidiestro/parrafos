@@ -8,7 +8,7 @@
 - `page.tsx`: publisher management dashboard.
 - `publisher-actions.ts`: create/update/delete publishers.
 - `runs/page.tsx` and `runs/run-actions.ts`: queue runs and inspect status.
-- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, persisted story-cluster visibility, article drill-down, cancel control, a callout explaining whether admin brief retry is available (and why not), and (for eligible failed runs) retry of brief generation via `retryBriefGenerationAction` in `runs/run-actions.ts`.
+- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, persisted story-cluster visibility, article drill-down, cancel control, a callout explaining retry availability, and (for failed runs) actions to retry missing source extractions (`retryFailedExtractionsAction`, based on missing body text) and, when eligible, retry brief generation (`retryBriefGenerationAction`) in `runs/run-actions.ts`.
 - `login/*`: login/logout flow and session cookie management hooks.
 
 ## Key Contracts and Invariants
@@ -19,6 +19,7 @@
 ## Common Changes
 - Publisher form/action changes: update UI component + matching action contract.
 - Run queue behavior changes: update `runs/run-actions.ts`, then align with worker/runs docs.
+- Failed-run recovery behavior changes: keep retry buttons aligned with `src/lib/runs/brief-retry.ts` availability logic and `src/lib/runs/process.ts` contracts.
 - Admin navigation changes: keep links between `/admin`, `/admin/runs`, and `/`.
 
 ## Verification

@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Json } from "@/database.types";
-import { retryBriefGenerationAction } from "@/app/admin/runs/run-actions";
+import {
+  retryBriefGenerationAction,
+  retryFailedExtractionsAction,
+} from "@/app/admin/runs/run-actions";
 import type {
   RunArticleWithPublisher,
   RunDetailPayload,
 } from "@/lib/data/runs";
 import {
+  canRetryFailedExtractions,
   canRetryBriefGeneration,
+  getFailedExtractionRetryAvailability,
   getBriefRetryAvailability,
 } from "@/lib/runs/brief-retry";
 
@@ -102,6 +107,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
     null,
   );
   const [cancelPending, setCancelPending] = useState(false);
+  const [retryExtractionPending, setRetryExtractionPending] = useState(false);
   const [retryBriefPending, setRetryBriefPending] = useState(false);
 
   useEffect(() => {
@@ -157,8 +163,14 @@ export function RunDetailClient({ runId, initialData }: Props) {
     data.run.status === "pending" || data.run.status === "running";
   const canRetryBrief =
     data.run.status === "failed" && canRetryBriefGeneration(data);
+  const canRetryExtractions =
+    data.run.status === "failed" && canRetryFailedExtractions(data);
   const briefRetryAvailability = useMemo(
     () => getBriefRetryAvailability(data),
+    [data],
+  );
+  const extractionRetryAvailability = useMemo(
+    () => getFailedExtractionRetryAvailability(data),
     [data],
   );
   const modalArticle = useMemo(() => {
@@ -182,6 +194,11 @@ export function RunDetailClient({ runId, initialData }: Props) {
             </span>
             {loading ? (
               <span className="text-xs text-zinc-500">Refreshing…</span>
+            ) : null}
+            {data.run.current_stage ? (
+              <span className="text-xs text-zinc-500">
+                Stage: {data.run.current_stage} (attempt {data.run.stage_attempt ?? 0})
+              </span>
             ) : null}
           </div>
           <div className="flex items-center gap-3">
@@ -259,6 +276,43 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 {retryBriefPending ? "Publishing brief…" : "Retry brief generation"}
               </button>
             ) : null}
+            {canRetryExtractions ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setRetryExtractionPending(true);
+                    setError(null);
+                    const result = await retryFailedExtractionsAction(runId);
+                    if (result?.error) {
+                      throw new Error(result.error);
+                    }
+                    const response = await fetch(`/admin/runs/${runId}/data`, {
+                      method: "GET",
+                      cache: "no-store",
+                    });
+                    if (!response.ok) {
+                      throw new Error(`Refresh failed (${response.status})`);
+                    }
+                    setData((await response.json()) as RunDetailPayload);
+                  } catch (retryError) {
+                    setError(
+                      retryError instanceof Error
+                        ? retryError.message
+                        : "Unable to retry failed extractions.",
+                    );
+                  } finally {
+                    setRetryExtractionPending(false);
+                  }
+                }}
+                disabled={retryExtractionPending}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {retryExtractionPending
+                  ? "Retrying extractions…"
+                  : "Retry missing extractions"}
+              </button>
+            ) : null}
             <span className="text-xs text-zinc-500">Run ID: {data.run.id}</span>
           </div>
         </div>
@@ -272,6 +326,12 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 : "border-zinc-200 bg-zinc-50 text-zinc-800"
           }`}
         >
+          <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            Extraction retry
+          </p>
+          <p className="mt-1 leading-snug">
+            {extractionRetryAvailability.headline}
+          </p>
           <p
             className={`text-xs font-semibold uppercase tracking-wide ${
               briefRetryAvailability.kind === "available"

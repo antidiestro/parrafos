@@ -13,13 +13,6 @@ function formatTime(value: string | null) {
   }).format(new Date(value));
 }
 
-type RunMetadata = {
-  publishers_done?: number;
-  publisher_count?: number;
-  articles_found?: number;
-  articles_upserted?: number;
-};
-
 export default async function AdminRunsPage() {
   await requireAdminSession();
   const runs = await listRecentRuns();
@@ -76,7 +69,6 @@ export default async function AdminRunsPage() {
                 </tr>
               ) : (
                 runs.map((run) => {
-                  const metadata = (run.metadata as RunMetadata | null) ?? null;
                   return (
                     <tr key={run.id} className="align-top">
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-900">
@@ -94,13 +86,13 @@ export default async function AdminRunsPage() {
                         {run.status}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-600">
-                        {metadata?.publishers_done ?? 0}/{metadata?.publisher_count ?? 0}
+                        {run.publishers_done ?? 0}/{run.publisher_count ?? 0}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-600">
-                        {metadata?.articles_found ?? 0}
+                        {run.articles_found ?? 0}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-600">
-                        {metadata?.articles_upserted ?? 0}
+                        {run.articles_upserted ?? 0}
                       </td>
                       <td className="max-w-xs truncate px-4 py-3 text-zinc-600">
                         {run.error_message ?? "—"}

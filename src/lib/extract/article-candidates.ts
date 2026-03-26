@@ -7,6 +7,7 @@ export type HomepageArticleCandidate = {
 export type ArticleMetadata = {
   canonicalUrl: string | null;
   title: string | null;
+  description: string | null;
   publishedAt: string | null;
   source: "ldjson" | "meta";
 };
@@ -255,6 +256,10 @@ export function extractArticleMetadata(
         toCanonicalUrl(getLdJsonUrl(match) ?? articleUrl, articleUrl) ??
         toCanonicalUrl(articleUrl, articleUrl);
       const title = getString(match.headline) ?? getString(match.name);
+      const description =
+        getString(match.description) ??
+        getString(match.abstract) ??
+        getString(match.alternativeHeadline);
       const publishedAt = toIsoOrNull(
         getString(match.datePublished) ??
           getString(match.dateCreated) ??
@@ -263,6 +268,7 @@ export function extractArticleMetadata(
       return {
         canonicalUrl,
         title,
+        description,
         publishedAt,
         source: "ldjson",
       };
@@ -286,10 +292,15 @@ export function extractArticleMetadata(
     getMetaContent($, "og:title") ??
     getMetaContent($, "twitter:title") ??
     (pageTitle || null);
+  const description =
+    getMetaContent($, "og:description") ??
+    getMetaContent($, "twitter:description") ??
+    getMetaContent($, "description");
 
   return {
     canonicalUrl,
     title,
+    description,
     publishedAt: toIsoOrNull(publishedMeta),
     source: "meta",
   };

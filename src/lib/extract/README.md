@@ -21,6 +21,7 @@
 - `extractArticleMetadata(articleUrl, html)`:
   - first tries `application/ld+json` entries of type `NewsArticle`/`Article` (including arrays and `@graph`),
   - falls back to meta tags only when `article:published_time` exists,
+  - extracts `description` from JSON-LD (`description`/`abstract`) or from meta tags (`og:description`, `twitter:description`, `description`) when available,
   - returns `null` when neither source provides required metadata contract.
 - Run orchestration (`src/lib/runs/process.ts`) uses metadata extraction as an early gate: all identified candidates are metadata-validated before clustering/relevance selection.
 - `cleanTextForLLM` returns bounded plain text for body-text extraction prompts.

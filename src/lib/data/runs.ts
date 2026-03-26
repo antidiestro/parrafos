@@ -1,5 +1,12 @@
 import type { Database } from "@/database.types";
-import { parseRunMetadata } from "@/lib/runs/progress";
+import {
+  createInitialRunMetadata,
+  parseRunMetadata,
+  type RunArticleProgress,
+  type RunError,
+  type RunMetadata,
+  type RunPublisherProgress,
+} from "@/lib/runs/progress";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type RunRow = Database["public"]["Tables"]["runs"]["Row"];
@@ -178,6 +185,11 @@ export async function getRunDetailPayload(
   if (!run) return null;
   const articles = await listRunArticles(runId);
   const clusters = await listRunStoryClusters(runId);
+  const [publisherProgress, articleProgress, runErrors] = await Promise.all([
+    listRunPublishersProgress(runId),
+    listRunArticlesProgress(runId),
+    listRunErrors(runId),
+  ]);
 
   const selectedSources = clusters
     .filter((c) => c.status === "selected")
@@ -192,10 +204,49 @@ export async function getRunDetailPayload(
 
   return {
     run,
-    metadata: parseRunMetadata(run.metadata),
+    metadata: hydrateRunMetadata({
+      run,
+      fallbackMetadata: parseRunMetadata(run.metadata),
+      publishers: publisherProgress,
+      articles: articleProgress,
+      errors: runErrors,
+    }),
     articles,
     clusters,
     briefArticleBodyKeys,
+  };
+}
+
+function hydrateRunMetadata(input: {
+  run: RunRow;
+  fallbackMetadata: RunMetadata;
+  publishers: RunPublisherProgress[];
+  articles: RunArticleProgress[];
+  errors: RunError[];
+}): RunMetadata {
+  const fallback = input.fallbackMetadata ?? createInitialRunMetadata();
+  return {
+    ...fallback,
+    models: {
+      identification: input.run.extract_model ?? fallback.models?.identification ?? fallback.model,
+      extraction: input.run.extract_model ?? fallback.models?.extraction ?? fallback.model,
+      clustering: input.run.cluster_model ?? fallback.models?.clustering ?? fallback.model,
+      relevance_selection:
+        input.run.relevance_model ??
+        fallback.models?.relevance_selection ??
+        fallback.model,
+    },
+    publisher_count: input.run.publisher_count ?? fallback.publisher_count,
+    publishers_done: input.run.publishers_done ?? fallback.publishers_done,
+    articles_found: input.run.articles_found ?? fallback.articles_found,
+    articles_upserted: input.run.articles_upserted ?? fallback.articles_upserted,
+    clusters_total: input.run.clusters_total ?? fallback.clusters_total,
+    clusters_eligible: input.run.clusters_eligible ?? fallback.clusters_eligible,
+    clusters_selected: input.run.clusters_selected ?? fallback.clusters_selected,
+    sources_selected: input.run.sources_selected ?? fallback.sources_selected,
+    publishers: input.publishers.length > 0 ? input.publishers : fallback.publishers,
+    articles: input.articles.length > 0 ? input.articles : fallback.articles,
+    errors: input.errors.length > 0 ? input.errors : fallback.errors,
   };
 }
 
@@ -254,5 +305,66 @@ async function listRunStoryClusters(
     created_at: cluster.created_at,
     updated_at: cluster.updated_at,
     sources: sourceByCluster.get(cluster.id) ?? [],
+  }));
+}
+
+async function listRunPublishersProgress(
+  runId: string,
+): Promise<RunPublisherProgress[]> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("run_publishers_progress")
+    .select(
+      "publisher_id,publisher_name,base_url,status,articles_found,articles_upserted,error_message",
+    )
+    .eq("run_id", runId)
+    .order("publisher_name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    publisher_id: row.publisher_id,
+    publisher_name: row.publisher_name,
+    base_url: row.base_url,
+    status: row.status as RunPublisherProgress["status"],
+    articles_found: row.articles_found,
+    articles_upserted: row.articles_upserted,
+    error_message: row.error_message,
+  }));
+}
+
+async function listRunArticlesProgress(
+  runId: string,
+): Promise<RunArticleProgress[]> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("run_articles_progress")
+    .select(
+      "publisher_id,url,canonical_url,title,published_at,status,error_message",
+    )
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    publisher_id: row.publisher_id,
+    url: row.url,
+    canonical_url: row.canonical_url,
+    title: row.title,
+    published_at: row.published_at,
+    status: row.status as RunArticleProgress["status"],
+    error_message: row.error_message,
+  }));
+}
+
+async function listRunErrors(runId: string): Promise<RunError[]> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("run_errors")
+    .select("publisher_id,url,message")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    publisher_id: row.publisher_id ?? undefined,
+    url: row.url ?? undefined,
+    message: row.message,
   }));
 }
