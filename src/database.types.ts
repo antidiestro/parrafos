@@ -22,11 +22,6 @@ export type Database = {
           id: string
           metadata: Json | null
           published_at: string | null
-          published_at_confidence: number | null
-          published_at_precision: string | null
-          published_at_raw: string | null
-          published_at_source: string | null
-          published_at_timezone: string | null
           publisher_id: string
           run_id: string
           title: string | null
@@ -38,11 +33,6 @@ export type Database = {
           id?: string
           metadata?: Json | null
           published_at?: string | null
-          published_at_confidence?: number | null
-          published_at_precision?: string | null
-          published_at_raw?: string | null
-          published_at_source?: string | null
-          published_at_timezone?: string | null
           publisher_id: string
           run_id: string
           title?: string | null
@@ -54,11 +44,6 @@ export type Database = {
           id?: string
           metadata?: Json | null
           published_at?: string | null
-          published_at_confidence?: number | null
-          published_at_precision?: string | null
-          published_at_raw?: string | null
-          published_at_source?: string | null
-          published_at_timezone?: string | null
           publisher_id?: string
           run_id?: string
           title?: string | null
@@ -111,7 +96,6 @@ export type Database = {
         Row: {
           base_url: string
           created_at: string
-          default_timezone: string
           id: string
           name: string
           updated_at: string
@@ -119,7 +103,6 @@ export type Database = {
         Insert: {
           base_url: string
           created_at?: string
-          default_timezone?: string
           id?: string
           name: string
           updated_at?: string
@@ -127,7 +110,6 @@ export type Database = {
         Update: {
           base_url?: string
           created_at?: string
-          default_timezone?: string
           id?: string
           name?: string
           updated_at?: string
@@ -140,11 +122,6 @@ export type Database = {
           cluster_id: string
           created_at: string
           published_at: string | null
-          published_at_confidence: number | null
-          published_at_precision: string | null
-          published_at_raw: string | null
-          published_at_source: string | null
-          published_at_timezone: string | null
           publisher_id: string
           run_id: string
           title: string | null
@@ -155,11 +132,6 @@ export type Database = {
           cluster_id: string
           created_at?: string
           published_at?: string | null
-          published_at_confidence?: number | null
-          published_at_precision?: string | null
-          published_at_raw?: string | null
-          published_at_source?: string | null
-          published_at_timezone?: string | null
           publisher_id: string
           run_id: string
           title?: string | null
@@ -170,11 +142,6 @@ export type Database = {
           cluster_id?: string
           created_at?: string
           published_at?: string | null
-          published_at_confidence?: number | null
-          published_at_precision?: string | null
-          published_at_raw?: string | null
-          published_at_source?: string | null
-          published_at_timezone?: string | null
           publisher_id?: string
           run_id?: string
           title?: string | null
