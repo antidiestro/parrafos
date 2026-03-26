@@ -39,6 +39,7 @@
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
+- Candidate identification is capped at 15 URLs per publisher homepage before clustering.
 - Candidate identification attempts to include `title` and `published_at` alongside URL.
 - Article detail extraction sends plain text (not cleaned HTML) and passes the identified title as a hint to improve focus.
 - Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.

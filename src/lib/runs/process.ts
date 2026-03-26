@@ -91,7 +91,7 @@ const articleListSchema = z.object({
         url: z.string().trim().min(1),
       }),
     )
-    .max(20),
+    .max(15),
 });
 
 const clusterSchema = z.object({
@@ -272,7 +272,7 @@ async function extractArticleUrls(
     [
       "You extract article links from a publisher homepage.",
       'Return JSON object: {"articles":[{"title":"...","published_at":"...","url":"..."}]}',
-      "Only include news article URLs, at most 20 items.",
+      "Only include news article URLs, at most 15 items.",
       "Include published_at when visible in the homepage content, else null.",
       `Homepage URL: ${homeUrl}`,
       "HTML:",
@@ -281,7 +281,7 @@ async function extractArticleUrls(
     articleListSchema,
     { model: RUN_EXTRACT_MODEL },
   );
-  return result.articles.slice(0, 20);
+  return result.articles.slice(0, 15);
 }
 
 async function extractArticleDetails(
@@ -938,7 +938,7 @@ export async function processRun(runId: string): Promise<void> {
               .map((c) => toCanonicalUrl(c.url, publisher.base_url))
               .filter((value): value is string => Boolean(value)),
           ),
-        ).slice(0, 20);
+        ).slice(0, 15);
 
         metadata.articles_found += normalizedUrls.length;
         if (publisherProgress) {
