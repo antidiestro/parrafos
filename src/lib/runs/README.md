@@ -47,12 +47,14 @@
 - Body text extraction still uses LLM parsing on cleaned article text.
 - Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.
 - Clustering uses compact synthetic `source_key` values (stable short hashes) instead of raw URL-shaped identifiers to reduce prompt/response size.
+- Clustering input is passed as compact plain text lines (`source_key | published_at | title`) instead of serialized JSON to reduce token overhead.
 - Clustering is precision-first and sparse: uncertain sources may remain unclustered (no fallback singleton clusters).
 - Clustering prompt targets 10 story clusters when evidence supports it.
 - A source can be assigned to only one cluster per run.
 - Cluster persistence uses a compact model contract (`title` + `source_keys`) and applies cross-publisher minimum support in code before persistence.
 - Persisted clusters with fewer than 3 sources are discarded before relevance selection.
-- Relevant-story selection asks for 6 clusters when at least 6 are eligible (otherwise all eligible clusters).
+- Relevant-story selection asks for 6 clusters when at least 6 are eligible (otherwise all eligible clusters), and now scores clusters with an explicit recency/impact rubric (latest timestamps, source activity in the last 6h/24h, and concise latest-development rationale).
+- Selected clusters persist `selection_reason` so the writing step has explicit context for why the story is in the brief.
 - Sources from selected stories that already exist in `articles` are skipped and not re-extracted.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
 - Per-article failures are captured in metadata errors and do not abort the entire run.
@@ -67,6 +69,7 @@
   7. commit article upserts sequentially in input order.
 - After extracting selected sources, the worker generates a published brief:
   - one Gemini summary paragraph per selected story cluster (~600 chars), via structured JSON output (`markdown` field),
+  - paragraph prompts enforce a latest-first structure: newest development first, then why it matters, then minimal context,
   - persisted into `briefs` + `stories`,
   - stories are ordered by descending `run_story_clusters.source_count` (tie-breaker: newest source).
   - logs each successful cluster paragraph and the final `briefId` + story count to the console (`[worker:runs] … brief:`); Gemini JSON parse failures log raw model text under `[gemini] generateGeminiJson:` (see `src/lib/gemini/generate.ts`).

@@ -10,13 +10,15 @@ import {
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
 import { cleanTextForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
+import { canRetryBriefGeneration } from "@/lib/runs/brief-retry";
 import {
-  RUN_CLUSTER_MODEL,
   RUN_BRIEF_MODEL,
+  RUN_CLUSTER_MODEL,
   RUN_EXTRACT_MODEL,
+  RUN_RECENCY_WINDOW_MEDIUM_HOURS,
+  RUN_RECENCY_WINDOW_SHORT_HOURS,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
-import { canRetryBriefGeneration } from "@/lib/runs/brief-retry";
 import {
   createInitialRunMetadata,
   type RunMetadata,
@@ -56,6 +58,7 @@ type CandidateSource = {
   canonicalUrl: string;
   title: string | null;
   publishedAt: string | null;
+  previewText: string | null;
 };
 
 type ExtractedArticle = CandidateSource & {
@@ -72,14 +75,17 @@ type PersistedCluster = {
   id: string;
   title: string;
   summary: string | null;
-  status: "clustered" | "eligible" | "selected" | "discarded_low_sources" | "not_selected";
+  status:
+    | "clustered"
+    | "eligible"
+    | "selected"
+    | "discarded_low_sources"
+    | "not_selected";
   sourceCount: number;
   sourceKeys: string[];
 };
 
-function toClusterStatus(
-  value: string,
-): PersistedCluster["status"] {
+function toClusterStatus(value: string): PersistedCluster["status"] {
   if (
     value === "clustered" ||
     value === "eligible" ||
@@ -124,21 +130,35 @@ const articleBodySchema = z.object({
 });
 
 const relevantStoriesSchema = z.object({
-  selected_cluster_ids: z.array(z.string().trim().min(1)).max(MAX_RELEVANT_STORIES),
-  selection_notes: z.string().trim().min(1).nullable().optional(),
+  selected_clusters: z
+    .array(
+      z.object({
+        cluster_id: z.string().trim().min(1),
+        selection_reason: z.string().trim().min(1).max(220),
+        latest_development: z.string().trim().min(1).max(280),
+      }),
+    )
+    .max(MAX_RELEVANT_STORIES),
 });
 
 const relevantStoriesResponseJsonSchema = {
   type: "object",
   properties: {
-    selected_cluster_ids: {
+    selected_clusters: {
       type: "array",
-      items: { type: "string" },
+      items: {
+        type: "object",
+        properties: {
+          cluster_id: { type: "string" },
+          selection_reason: { type: "string" },
+          latest_development: { type: "string" },
+        },
+        required: ["cluster_id", "selection_reason", "latest_development"],
+      },
       maxItems: MAX_RELEVANT_STORIES,
     },
-    selection_notes: { type: "string" },
   },
-  required: ["selected_cluster_ids"],
+  required: ["selected_clusters"],
 };
 
 const briefParagraphSchema = z.object({
@@ -154,8 +174,58 @@ const briefParagraphResponseJsonSchema = {
 };
 
 function replaceNewlinesWithSpaces(value: string) {
-  return value.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/\r?\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
+
+function toSingleLine(value: string | null | undefined) {
+  return replaceNewlinesWithSpaces(value ?? "");
+}
+
+function toRecentCount(
+  values: Array<string | null>,
+  nowMs: number,
+  windowHours: number,
+): number {
+  const windowMs = windowHours * 60 * 60 * 1000;
+  return values.filter((value) => {
+    if (!value) return false;
+    const ts = +new Date(value);
+    if (!Number.isFinite(ts)) return false;
+    const delta = nowMs - ts;
+    return delta >= 0 && delta <= windowMs;
+  }).length;
+}
+
+function toHoursAgo(iso: string | null, nowMs: number): number | null {
+  if (!iso) return null;
+  const ts = +new Date(iso);
+  if (!Number.isFinite(ts)) return null;
+  const delta = nowMs - ts;
+  if (delta < 0) return 0;
+  return Math.round((delta / (1000 * 60 * 60)) * 10) / 10;
+}
+
+type ClusterSelectionEvidence = {
+  clusterId: string;
+  title: string;
+  sourceCount: number;
+  uniquePublisherCount: number;
+  latestPublishedAt: string | null;
+  earliestPublishedAt: string | null;
+  recentSourceCount6h: number;
+  recentSourceCount24h: number;
+  latestHeadlines: string[];
+  latestPreview: string | null;
+};
+
+type SelectionDecision = {
+  selectedClusterIds: Set<string>;
+  reasonsByClusterId: Map<string, string>;
+  latestDevelopmentByClusterId: Map<string, string>;
+};
 
 function ensureStartsWithIntroBold(markdown: string): string {
   const trimmed = markdown.trim();
@@ -299,22 +369,26 @@ function buildStoryTitle(candidates: CandidateSource[]) {
 }
 
 async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
-  const input = candidates.map((candidate) => ({
-    source_key: sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
-    publisher: candidate.publisherName,
-    title: candidate.title,
-  }));
+  const inputLines = candidates.map((candidate) => {
+    const sourceKey = sourceKeyFor(
+      candidate.publisherId,
+      candidate.canonicalUrl,
+    );
+    const title = toSingleLine(candidate.title) || "(untitled)";
+    const publishedAt = candidate.publishedAt ?? "unknown";
+    return `${sourceKey} | ${publishedAt} | ${title}`;
+  });
 
   const response = await generateGeminiJson(
     [
       "Group only clearly related sources into specific stories.",
-      `Target ${TARGET_CLUSTER_COUNT} story clusters when evidence supports it.`,
+      `Find at least ${TARGET_CLUSTER_COUNT} story clusters.`,
       "Each source_key can appear in at most one story.",
       "Only group sources that describe one concrete event or development.",
       "Leave uncertain sources unassigned.",
-      "Return JSON object: {\"stories\":[{\"title\":\"...\",\"source_keys\":[\"...\"]}]}",
-      "Candidate sources:",
-      JSON.stringify(input),
+      'Return JSON object: {"stories":[{"title":"...","source_keys":["..."]}]}',
+      "Candidate sources (one per line: source_key | published_at | title):",
+      inputLines.join("\n"),
     ].join("\n"),
     clusterSchema,
     {
@@ -341,7 +415,11 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
     ]),
   );
   const usedKeys = new Set<string>();
-  const stories: { title: string; summary: string | null; sourceKeys: string[] }[] = [];
+  const stories: {
+    title: string;
+    summary: string | null;
+    sourceKeys: string[];
+  }[] = [];
 
   for (const story of response.stories) {
     const sourceKeys: string[] = [];
@@ -380,6 +458,64 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
   return stories;
 }
 
+function buildClusterSelectionEvidence(
+  clusters: PersistedCluster[],
+  sourceByKey: Map<string, CandidateSource>,
+): ClusterSelectionEvidence[] {
+  const nowMs = Date.now();
+  return clusters.map((cluster) => {
+    const sources = cluster.sourceKeys
+      .map((key) => sourceByKey.get(key))
+      .filter((value): value is CandidateSource => Boolean(value));
+    const sortedByRecency = sources.slice().sort((a, b) => {
+      if (a.publishedAt && b.publishedAt) {
+        return +new Date(b.publishedAt) - +new Date(a.publishedAt);
+      }
+      if (a.publishedAt && !b.publishedAt) return -1;
+      if (!a.publishedAt && b.publishedAt) return 1;
+      return a.url.localeCompare(b.url);
+    });
+    const latestPublishedAt =
+      sortedByRecency.find((source) => source.publishedAt)?.publishedAt ?? null;
+    const earliestPublishedAt =
+      sortedByRecency
+        .map((source) => source.publishedAt)
+        .filter((value): value is string => Boolean(value))
+        .sort((a, b) => +new Date(a) - +new Date(b))[0] ?? null;
+    const latestHeadlines = sortedByRecency
+      .map((source) => toSingleLine(source.title))
+      .filter((title) => title.length > 0)
+      .slice(0, 3);
+    const latestPreview =
+      sortedByRecency
+        .map((source) => source.previewText)
+        .find((value): value is string => Boolean(value && value.trim())) ??
+      null;
+
+    return {
+      clusterId: cluster.id,
+      title: cluster.title,
+      sourceCount: cluster.sourceCount,
+      uniquePublisherCount: new Set(sources.map((source) => source.publisherId))
+        .size,
+      latestPublishedAt,
+      earliestPublishedAt,
+      recentSourceCount6h: toRecentCount(
+        sources.map((source) => source.publishedAt),
+        nowMs,
+        RUN_RECENCY_WINDOW_SHORT_HOURS,
+      ),
+      recentSourceCount24h: toRecentCount(
+        sources.map((source) => source.publishedAt),
+        nowMs,
+        RUN_RECENCY_WINDOW_MEDIUM_HOURS,
+      ),
+      latestHeadlines,
+      latestPreview,
+    };
+  });
+}
+
 async function clearPersistedRunClusters(runId: string) {
   const supabase = createSupabaseServiceClient();
   const { error } = await supabase
@@ -410,7 +546,9 @@ async function persistClusters(
       .select("id,title,summary,status,source_count")
       .single();
     if (clusterError || !insertedCluster) {
-      throw new Error(clusterError?.message ?? "Unable to persist story cluster");
+      throw new Error(
+        clusterError?.message ?? "Unable to persist story cluster",
+      );
     }
 
     const sources = story.sourceKeys
@@ -473,13 +611,30 @@ async function markEligibleClusters(
   return next;
 }
 
-async function selectRelevantStories(clusters: PersistedCluster[]) {
-  if (clusters.length === 0) return new Set<string>();
-  const input = clusters.map((cluster) => ({
-    cluster_id: cluster.id,
-    title: cluster.title,
-    summary: cluster.summary,
-    source_count: cluster.sourceCount,
+async function selectRelevantStories(
+  clusters: PersistedCluster[],
+  evidenceRows: ClusterSelectionEvidence[],
+): Promise<SelectionDecision> {
+  if (clusters.length === 0) {
+    return {
+      selectedClusterIds: new Set<string>(),
+      reasonsByClusterId: new Map<string, string>(),
+      latestDevelopmentByClusterId: new Map<string, string>(),
+    };
+  }
+  const nowMs = Date.now();
+  const input = evidenceRows.map((row) => ({
+    cluster_id: row.clusterId,
+    title: row.title,
+    source_count: row.sourceCount,
+    publisher_count: row.uniquePublisherCount,
+    latest_published_at: row.latestPublishedAt,
+    earliest_published_at: row.earliestPublishedAt,
+    latest_hours_ago: toHoursAgo(row.latestPublishedAt, nowMs),
+    sources_last_6h: row.recentSourceCount6h,
+    sources_last_24h: row.recentSourceCount24h,
+    latest_headlines: row.latestHeadlines,
+    latest_preview: row.latestPreview,
   }));
 
   const response = await generateGeminiJson(
@@ -487,8 +642,11 @@ async function selectRelevantStories(clusters: PersistedCluster[]) {
       "Choose the most relevant stories for extraction.",
       `Return exactly ${MAX_RELEVANT_STORIES} cluster IDs when there are at least ${MAX_RELEVANT_STORIES} eligible stories.`,
       `If there are fewer than ${MAX_RELEVANT_STORIES} eligible stories, return all eligible cluster IDs.`,
-      "Focus on high-impact and broadly relevant stories.",
-      "Prefer selecting none over selecting weak or uncertain clusters.",
+      "Prioritize public impact and broad relevance.",
+      `Prioritize clusters with concrete updates in the last ${RUN_RECENCY_WINDOW_SHORT_HOURS}-${RUN_RECENCY_WINDOW_MEDIUM_HOURS} hours.`,
+      "Prefer newest developments over stale recap.",
+      "Deprioritize repetitive, low-consequence, or evergreen items when stronger updates exist.",
+      "For each selected cluster, return a short selection_reason and latest_development sentence.",
       "Stories:",
       JSON.stringify(input),
     ].join("\n"),
@@ -503,25 +661,42 @@ async function selectRelevantStories(clusters: PersistedCluster[]) {
 
   const eligibleIds = new Set(clusters.map((cluster) => cluster.id));
   const selected = new Set<string>();
-  for (const clusterId of response.selected_cluster_ids) {
-    if (!eligibleIds.has(clusterId)) continue;
-    selected.add(clusterId);
+  const reasonsByClusterId = new Map<string, string>();
+  const latestDevelopmentByClusterId = new Map<string, string>();
+  for (const entry of response.selected_clusters) {
+    if (!eligibleIds.has(entry.cluster_id)) continue;
+    selected.add(entry.cluster_id);
+    reasonsByClusterId.set(entry.cluster_id, entry.selection_reason.trim());
+    latestDevelopmentByClusterId.set(
+      entry.cluster_id,
+      entry.latest_development.trim(),
+    );
     if (selected.size >= MAX_RELEVANT_STORIES) break;
   }
-  return selected;
+  return {
+    selectedClusterIds: selected,
+    reasonsByClusterId,
+    latestDevelopmentByClusterId,
+  };
 }
 
 async function updateClusterSelectionStatuses(
   runId: string,
   eligibleClusters: PersistedCluster[],
-  selectedClusterIds: Set<string>,
+  decisions: SelectionDecision,
 ) {
   const supabase = createSupabaseServiceClient();
   for (const cluster of eligibleClusters) {
-    const status = selectedClusterIds.has(cluster.id) ? "selected" : "not_selected";
+    const status = decisions.selectedClusterIds.has(cluster.id)
+      ? "selected"
+      : "not_selected";
+    const selectionReason =
+      status === "selected"
+        ? (decisions.reasonsByClusterId.get(cluster.id) ?? null)
+        : null;
     const { error } = await supabase
       .from("run_story_clusters")
-      .update({ status })
+      .update({ status, selection_reason: selectionReason })
       .eq("id", cluster.id)
       .eq("run_id", runId);
     if (error) throw new Error(error.message);
@@ -615,7 +790,8 @@ async function createAndPublishBriefForRun(runId: string) {
   }
 
   const sortedClusters = selectedClusters.slice().sort((a, b) => {
-    if (b.source_count !== a.source_count) return b.source_count - a.source_count;
+    if (b.source_count !== a.source_count)
+      return b.source_count - a.source_count;
 
     const aMax = maxPublishedAtByCluster.get(a.id) ?? null;
     const bMax = maxPublishedAtByCluster.get(b.id) ?? null;
@@ -627,6 +803,7 @@ async function createAndPublishBriefForRun(runId: string) {
   });
 
   const generatedStoryMarkdown: string[] = [];
+  const nowMs = Date.now();
 
   for (const cluster of sortedClusters) {
     const clusterSources = sources
@@ -640,6 +817,10 @@ async function createAndPublishBriefForRun(runId: string) {
         if (!a.published_at && b.published_at) return 1;
         return a.url.localeCompare(b.url);
       });
+    const latestClusterSourceTime = clusterSources.find(
+      (source) => source.published_at,
+    )?.published_at;
+    const latestHoursAgo = toHoursAgo(latestClusterSourceTime ?? null, nowMs);
 
     const sourceTexts: string[] = [];
     for (const source of clusterSources) {
@@ -675,10 +856,19 @@ async function createAndPublishBriefForRun(runId: string) {
       "Instructions:",
       "1) Output exactly one Markdown paragraph (no headings, no lists).",
       "2) Always start with an introductory phrase in bold (first characters must be bold).",
-      "3) Skew towards the newest developments whenever the story is ongoing (prioritize the most recent details you see in the sources).",
+      "3) First sentence must state the latest concrete development right now.",
+      "4) Keep historical context concise and only as support for the latest update.",
+      "5) If story spans multiple days, emphasize what changed recently vs prior coverage.",
+      "6) Avoid recap-heavy phrasing and avoid listing everything that happened.",
       `Story title / topic: ${cluster.title}`,
       cluster.selection_reason
         ? `Why this story was selected: ${cluster.selection_reason}`
+        : null,
+      latestClusterSourceTime
+        ? `Most recent source timestamp: ${new Date(latestClusterSourceTime).toISOString()}`
+        : null,
+      latestHoursAgo !== null
+        ? `Most recent source is approximately ${latestHoursAgo} hours old.`
         : null,
       "Relevant sources (full texts), each delimited by ---:",
       sourceTexts.map((t) => `---\n${t}\n---`).join("\n"),
@@ -687,16 +877,12 @@ async function createAndPublishBriefForRun(runId: string) {
       .filter(Boolean)
       .join("\n");
 
-    const generated = await generateGeminiJson(
-      prompt,
-      briefParagraphSchema,
-      {
-        model: RUN_BRIEF_MODEL,
-        nativeStructuredOutput: {
-          responseJsonSchema: briefParagraphResponseJsonSchema,
-        },
+    const generated = await generateGeminiJson(prompt, briefParagraphSchema, {
+      model: RUN_BRIEF_MODEL,
+      nativeStructuredOutput: {
+        responseJsonSchema: briefParagraphResponseJsonSchema,
       },
-    );
+    });
 
     const cleaned = ensureStartsWithIntroBold(
       replaceNewlinesWithSpaces(generated.markdown),
@@ -813,7 +999,9 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
   }
   if (!pending) return null;
 
-  logRun(null, "claimNextPendingRun: attempting claim", { pendingRunId: pending.id });
+  logRun(null, "claimNextPendingRun: attempting claim", {
+    pendingRunId: pending.id,
+  });
 
   const metadata = createInitialRunMetadata();
   const { data: claimed, error: claimError } = await supabase
@@ -873,7 +1061,10 @@ export async function processRun(runId: string): Promise<void> {
 
     for (const publisher of publishers) {
       if (await isRunCancelled(runId)) {
-        logRun(runId, "processRun: cancelled during publisher loop; exiting early");
+        logRun(
+          runId,
+          "processRun: cancelled during publisher loop; exiting early",
+        );
         return;
       }
 
@@ -949,8 +1140,7 @@ export async function processRun(runId: string): Promise<void> {
 
         metadata.errors.push({
           publisher_id: publisher.id,
-          message:
-            errorToMessage(error) ?? "Publisher crawl failed",
+          message: errorToMessage(error) ?? "Publisher crawl failed",
         });
       } finally {
         metadata.publishers_done += 1;
@@ -1010,6 +1200,10 @@ export async function processRun(runId: string): Promise<void> {
             return null;
           }
 
+          const cleanedSnippet = cleanTextForLLM(articleRes.html).slice(
+            0,
+            1400,
+          );
           const canonicalUrl =
             toCanonicalUrl(
               metadataResult.canonicalUrl ?? articleRes.finalUrl,
@@ -1034,10 +1228,12 @@ export async function processRun(runId: string): Promise<void> {
             publishedAt: article.published_at,
             sourceUrl: articleRes.finalUrl,
             html: articleRes.html,
+            previewText: cleanedSnippet || null,
           };
         } catch (error) {
           article.status = "failed";
-          article.error_message = errorToMessage(error) ?? "Metadata fetch failed";
+          article.error_message =
+            errorToMessage(error) ?? "Metadata fetch failed";
           metadata.errors.push({
             publisher_id: article.publisher_id,
             url: article.url,
@@ -1057,7 +1253,10 @@ export async function processRun(runId: string): Promise<void> {
     const prefetchedByCandidateKey = new Map<string, PrefetchedArticle>();
     for (const candidate of metadataReadyCandidates) {
       if (!candidate) continue;
-      prefetchedByCandidateKey.set(`${candidate.publisherId}::${candidate.url}`, candidate);
+      prefetchedByCandidateKey.set(
+        `${candidate.publisherId}::${candidate.url}`,
+        candidate,
+      );
     }
 
     const identifiedCandidates: CandidateSource[] = metadataReadyCandidates
@@ -1069,6 +1268,7 @@ export async function processRun(runId: string): Promise<void> {
         canonicalUrl: candidate.canonicalUrl,
         title: candidate.title,
         publishedAt: candidate.publishedAt,
+        previewText: candidate.previewText,
       }));
 
     logRun(runId, "metadata stage: prefetch complete", {
@@ -1088,7 +1288,9 @@ export async function processRun(runId: string): Promise<void> {
     });
 
     const identifiedCandidateKeys = new Set(
-      identifiedCandidates.map((candidate) => `${candidate.publisherId}::${candidate.url}`),
+      identifiedCandidates.map(
+        (candidate) => `${candidate.publisherId}::${candidate.url}`,
+      ),
     );
     for (const article of metadata.articles) {
       if (
@@ -1109,7 +1311,8 @@ export async function processRun(runId: string): Promise<void> {
     }
 
     await clearPersistedRunClusters(runId);
-    const clusteredStories = await clusterCandidatesIntoStories(identifiedCandidates);
+    const clusteredStories =
+      await clusterCandidatesIntoStories(identifiedCandidates);
     const persistedClusters = await persistClusters(
       runId,
       clusteredStories,
@@ -1157,9 +1360,20 @@ export async function processRun(runId: string): Promise<void> {
       clustersTotal: persistedClusters.length,
     });
 
-    const selectedClusterIds = await selectRelevantStories(eligibleClusters);
-    await updateClusterSelectionStatuses(runId, eligibleClusters, selectedClusterIds);
-    metadata.clusters_selected = selectedClusterIds.size;
+    const selectionEvidence = buildClusterSelectionEvidence(
+      eligibleClusters,
+      sourceByKey,
+    );
+    const selectionDecisions = await selectRelevantStories(
+      eligibleClusters,
+      selectionEvidence,
+    );
+    await updateClusterSelectionStatuses(
+      runId,
+      eligibleClusters,
+      selectionDecisions,
+    );
+    metadata.clusters_selected = selectionDecisions.selectedClusterIds.size;
 
     logRun(runId, "clustering stage: selected clusters", {
       clustersSelected: metadata.clusters_selected,
@@ -1168,7 +1382,7 @@ export async function processRun(runId: string): Promise<void> {
     const selectedCandidates: CandidateSource[] = [];
     const selectedSourceKeys = new Set<string>();
     for (const cluster of clustersWithEligibility) {
-      if (!selectedClusterIds.has(cluster.id)) continue;
+      if (!selectionDecisions.selectedClusterIds.has(cluster.id)) continue;
       for (const key of cluster.sourceKeys) {
         selectedSourceKeys.add(key);
         const source = sourceByKey.get(key);
@@ -1253,8 +1467,7 @@ export async function processRun(runId: string): Promise<void> {
         metadata.errors.push({
           publisher_id: candidate.publisherId,
           url: candidate.url,
-          message:
-            errorToMessage(error) ?? "Existing article check failed",
+          message: errorToMessage(error) ?? "Existing article check failed",
         });
       }
       await updateRunProgress(runId, { metadata });
@@ -1345,8 +1558,7 @@ export async function processRun(runId: string): Promise<void> {
           metadata.errors.push({
             publisher_id: candidate.publisherId,
             url: candidate.url,
-            message:
-              errorToMessage(error) ?? "Article extraction failed",
+            message: errorToMessage(error) ?? "Article extraction failed",
           });
           await updateRunProgress(runId, { metadata });
           return null;
@@ -1370,25 +1582,23 @@ export async function processRun(runId: string): Promise<void> {
           canonicalUrl: article.canonicalUrl,
         });
 
-        const { error: upsertError } = await supabase
-          .from("articles")
-          .upsert(
-            {
-              publisher_id: article.publisherId,
-              run_id: runId,
-              canonical_url: article.canonicalUrl,
-              title: article.title,
-              body_text: article.bodyText,
-              published_at: article.publishedAt,
-              metadata: {
-                source_url: article.sourceUrl,
-                model: RUN_EXTRACT_MODEL,
-                clustering_model: RUN_CLUSTER_MODEL,
-                relevance_selection_model: RUN_RELEVANCE_MODEL,
-              },
+        const { error: upsertError } = await supabase.from("articles").upsert(
+          {
+            publisher_id: article.publisherId,
+            run_id: runId,
+            canonical_url: article.canonicalUrl,
+            title: article.title,
+            body_text: article.bodyText,
+            published_at: article.publishedAt,
+            metadata: {
+              source_url: article.sourceUrl,
+              model: RUN_EXTRACT_MODEL,
+              clustering_model: RUN_CLUSTER_MODEL,
+              relevance_selection_model: RUN_RELEVANCE_MODEL,
             },
-            { onConflict: "publisher_id,canonical_url" },
-          );
+          },
+          { onConflict: "publisher_id,canonical_url" },
+        );
         if (upsertError) {
           throw new Error(upsertError.message);
         }
