@@ -11,6 +11,10 @@
 - `npm run worker:runs -- --once`: claim and process at most one pending run, then exit.
 - Delegates actual run logic to `src/lib/runs/process.ts`.
 
+## Logging
+- Worker-level logs are emitted via `console.log` with the prefix `[worker:runs]`.
+- During `processRun`, logs include stage transitions (publisher crawl, clustering, extraction, upserts, brief publishing) plus per-article outcomes (queued/skipped, fetched+parsed, upserted/failed).
+
 ## Common Changes
 - Polling cadence/runtime behavior: update `run-worker.ts`.
 - Extraction semantics: change `src/lib/runs` instead of this script.

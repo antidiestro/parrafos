@@ -2,10 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Json } from "@/database.types";
+import { retryBriefGenerationAction } from "@/app/admin/runs/run-actions";
 import type {
   RunArticleWithPublisher,
   RunDetailPayload,
 } from "@/lib/data/runs";
+import {
+  canRetryBriefGeneration,
+  getBriefRetryAvailability,
+} from "@/lib/runs/brief-retry";
 
 type Props = {
   runId: string;
@@ -14,9 +19,10 @@ type Props = {
 
 type ArticleProgress = RunDetailPayload["metadata"]["articles"][number];
 
+/** Fixed locale so SSR (Node) and the browser agree during hydration. */
 function formatTime(value: string | null) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -96,6 +102,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
     null,
   );
   const [cancelPending, setCancelPending] = useState(false);
+  const [retryBriefPending, setRetryBriefPending] = useState(false);
 
   useEffect(() => {
     if (isTerminalStatus(data.run.status)) return;
@@ -148,6 +155,12 @@ export function RunDetailClient({ runId, initialData }: Props) {
   const clusters = Array.isArray(data.clusters) ? data.clusters : [];
   const canCancel =
     data.run.status === "pending" || data.run.status === "running";
+  const canRetryBrief =
+    data.run.status === "failed" && canRetryBriefGeneration(data);
+  const briefRetryAvailability = useMemo(
+    () => getBriefRetryAvailability(data),
+    [data],
+  );
   const modalArticle = useMemo(() => {
     if (!selectedArticle) return null;
     return {
@@ -211,8 +224,82 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 {cancelPending ? "Cancelling..." : "Cancel run"}
               </button>
             ) : null}
+            {canRetryBrief ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setRetryBriefPending(true);
+                    setError(null);
+                    const result = await retryBriefGenerationAction(runId);
+                    if (result?.error) {
+                      throw new Error(result.error);
+                    }
+                    const response = await fetch(`/admin/runs/${runId}/data`, {
+                      method: "GET",
+                      cache: "no-store",
+                    });
+                    if (!response.ok) {
+                      throw new Error(`Refresh failed (${response.status})`);
+                    }
+                    setData((await response.json()) as RunDetailPayload);
+                  } catch (retryError) {
+                    setError(
+                      retryError instanceof Error
+                        ? retryError.message
+                        : "Unable to retry brief generation.",
+                    );
+                  } finally {
+                    setRetryBriefPending(false);
+                  }
+                }}
+                disabled={retryBriefPending}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {retryBriefPending ? "Publishing brief…" : "Retry brief generation"}
+              </button>
+            ) : null}
             <span className="text-xs text-zinc-500">Run ID: {data.run.id}</span>
           </div>
+        </div>
+
+        <div
+          className={`mt-3 rounded-lg border p-3 text-sm ${
+            briefRetryAvailability.kind === "available"
+              ? "border-green-200 bg-green-50 text-green-900"
+              : briefRetryAvailability.kind === "unavailable"
+                ? "border-amber-200 bg-amber-50 text-amber-950"
+                : "border-zinc-200 bg-zinc-50 text-zinc-800"
+          }`}
+        >
+          <p
+            className={`text-xs font-semibold uppercase tracking-wide ${
+              briefRetryAvailability.kind === "available"
+                ? "text-green-800"
+                : briefRetryAvailability.kind === "unavailable"
+                  ? "text-amber-900"
+                  : "text-zinc-600"
+            }`}
+          >
+            Brief generation (manual retry)
+          </p>
+          <p className="mt-1 font-medium leading-snug">
+            {briefRetryAvailability.headline}
+          </p>
+          {briefRetryAvailability.kind === "not_applicable" &&
+          briefRetryAvailability.detail ? (
+            <p className="mt-1.5 text-sm leading-relaxed opacity-90">
+              {briefRetryAvailability.detail}
+            </p>
+          ) : null}
+          {briefRetryAvailability.kind === "unavailable" &&
+          briefRetryAvailability.reasons.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed">
+              {briefRetryAvailability.reasons.map((reason) => (
+                <li key={reason.id}>{reason.message}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
         <div className="mb-2 h-3 w-full overflow-hidden rounded-full bg-zinc-100">

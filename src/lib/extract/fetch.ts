@@ -17,12 +17,43 @@ export async function fetchHtmlWithRetries(
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      return await fetchHtml(url, {
+      console.log(
+        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: attempt`,
+        {
+          url,
+          attempt: attempt + 1,
+          maxAttempts: retries + 1,
+          timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          maxBytes: opts?.maxBytes ?? DEFAULT_MAX_BYTES,
+        },
+      );
+      const result = await fetchHtml(url, {
         timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBytes: opts?.maxBytes ?? DEFAULT_MAX_BYTES,
       });
+
+      console.log(
+        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: success`,
+        {
+          url,
+          finalUrl: result.finalUrl,
+          status: result.status,
+          htmlChars: result.html.length,
+        },
+      );
+
+      return result;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       lastError = error instanceof Error ? error : new Error("Fetch failed");
+      console.log(
+        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: attempt failed`,
+        {
+          url,
+          attempt: attempt + 1,
+          error: message,
+        },
+      );
       if (attempt < retries) {
         await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 500));
       }

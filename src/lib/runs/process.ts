@@ -1,14 +1,17 @@
 import { z } from "zod";
 import type { Json } from "@/database.types";
 import { listPublishers } from "@/lib/data/publishers";
+import { getRunDetailPayload } from "@/lib/data/runs";
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
 import { cleanHtmlForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import {
   RUN_CLUSTER_MODEL,
+  RUN_BRIEF_MODEL,
   RUN_EXTRACT_MODEL,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
+import { canRetryBriefGeneration } from "@/lib/runs/brief-retry";
 import {
   createInitialRunMetadata,
   type RunMetadata,
@@ -17,6 +20,28 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 const MIN_SOURCES_PER_CLUSTER = 3;
 const MAX_RELEVANT_STORIES = 8;
+
+function errorToMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logRun(
+  runId: string | null,
+  message: string,
+  context?: Record<string, unknown>,
+) {
+  const runLabel = runId ?? "none";
+  if (context) {
+    console.log(
+      `[worker:runs] ${new Date().toISOString()} [run:${runLabel}] ${message}`,
+      context,
+    );
+  } else {
+    console.log(
+      `[worker:runs] ${new Date().toISOString()} [run:${runLabel}] ${message}`,
+    );
+  }
+}
 
 type CandidateSource = {
   publisherId: string;
@@ -121,6 +146,28 @@ const relevantStoriesResponseJsonSchema = {
   },
   required: ["selected_cluster_ids"],
 };
+
+const briefParagraphSchema = z.object({
+  markdown: z.string().trim().min(10),
+});
+
+const briefParagraphResponseJsonSchema = {
+  type: "object",
+  properties: {
+    markdown: { type: "string", minLength: 10 },
+  },
+  required: ["markdown"],
+};
+
+function replaceNewlinesWithSpaces(value: string) {
+  return value.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function ensureStartsWithIntroBold(markdown: string): string {
+  const trimmed = markdown.trim();
+  if (/^\*\*.+?\*\*/.test(trimmed)) return trimmed;
+  return `**Top update:** ${trimmed}`;
+}
 
 function toCanonicalUrl(raw: string, baseUrl: string): string | null {
   try {
@@ -282,7 +329,7 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
     {
       model: RUN_CLUSTER_MODEL,
       nativeStructuredOutput: {
-        responseSchema: clusterResponseJsonSchema,
+        responseJsonSchema: clusterResponseJsonSchema,
       },
     },
   );
@@ -443,7 +490,7 @@ async function selectRelevantStories(clusters: PersistedCluster[]) {
     {
       model: RUN_RELEVANCE_MODEL,
       nativeStructuredOutput: {
-        responseSchema: relevantStoriesResponseJsonSchema,
+        responseJsonSchema: relevantStoriesResponseJsonSchema,
       },
     },
   );
@@ -475,6 +522,258 @@ async function updateClusterSelectionStatuses(
   }
 }
 
+async function createAndPublishBriefForRun(runId: string) {
+  const supabase = createSupabaseServiceClient();
+
+  const { data: clusterRows, error: clustersError } = await supabase
+    .from("run_story_clusters")
+    .select("id,source_count,title,selection_reason,created_at")
+    .eq("run_id", runId)
+    .eq("status", "selected");
+
+  if (clustersError) {
+    throw new Error(clustersError.message);
+  }
+
+  const selectedClusters = (clusterRows ?? []) as Array<{
+    id: string;
+    source_count: number;
+    title: string;
+    selection_reason: string | null;
+    created_at: string;
+  }>;
+
+  if (selectedClusters.length === 0) return;
+
+  const clusterIds = selectedClusters.map((c) => c.id);
+  const { data: sourceRows, error: sourcesError } = await supabase
+    .from("run_story_cluster_sources")
+    .select(
+      "cluster_id,publisher_id,canonical_url,url,title,published_at,publishers(name)",
+    )
+    .in("cluster_id", clusterIds);
+
+  if (sourcesError) {
+    throw new Error(sourcesError.message);
+  }
+
+  const sources = (sourceRows ?? []) as Array<{
+    cluster_id: string;
+    publisher_id: string;
+    canonical_url: string;
+    url: string;
+    title: string | null;
+    published_at: string | null;
+    publishers: { name: string } | null;
+  }>;
+
+  // Fetch extracted article bodies for all sources we selected.
+  const urlsByPublisher = new Map<string, Set<string>>();
+  for (const source of sources) {
+    const set = urlsByPublisher.get(source.publisher_id) ?? new Set<string>();
+    set.add(source.canonical_url);
+    urlsByPublisher.set(source.publisher_id, set);
+  }
+
+  const articleTextByKey = new Map<string, string>();
+  for (const [publisherId, canonicalUrlsSet] of urlsByPublisher.entries()) {
+    const canonicalUrls = Array.from(canonicalUrlsSet);
+    const { data: articleRows, error: articleError } = await supabase
+      .from("articles")
+      .select("publisher_id,canonical_url,body_text")
+      .eq("publisher_id", publisherId)
+      .in("canonical_url", canonicalUrls);
+
+    if (articleError) {
+      throw new Error(articleError.message);
+    }
+
+    for (const row of articleRows ?? []) {
+      if (!row.body_text) continue;
+      articleTextByKey.set(
+        `${row.publisher_id}::${row.canonical_url}`,
+        row.body_text,
+      );
+    }
+  }
+
+  const maxPublishedAtByCluster = new Map<string, string | null>();
+  for (const cluster of selectedClusters) {
+    const clusterPublishedAt = sources
+      .filter((s) => s.cluster_id === cluster.id)
+      .map((s) => s.published_at)
+      .filter((v): v is string => Boolean(v))
+      .sort((a, b) => +new Date(b) - +new Date(a))[0];
+
+    maxPublishedAtByCluster.set(cluster.id, clusterPublishedAt ?? null);
+  }
+
+  const sortedClusters = selectedClusters.slice().sort((a, b) => {
+    if (b.source_count !== a.source_count) return b.source_count - a.source_count;
+
+    const aMax = maxPublishedAtByCluster.get(a.id) ?? null;
+    const bMax = maxPublishedAtByCluster.get(b.id) ?? null;
+
+    if (aMax && bMax) return +new Date(bMax) - +new Date(aMax); // newest first
+    if (aMax && !bMax) return -1;
+    if (!aMax && bMax) return 1;
+    return +new Date(a.created_at) - +new Date(b.created_at); // stable fallback
+  });
+
+  const generatedStoryMarkdown: string[] = [];
+
+  for (const cluster of sortedClusters) {
+    const clusterSources = sources
+      .filter((s) => s.cluster_id === cluster.id)
+      .slice()
+      .sort((a, b) => {
+        if (a.published_at && b.published_at) {
+          return +new Date(b.published_at) - +new Date(a.published_at);
+        }
+        if (a.published_at && !b.published_at) return -1;
+        if (!a.published_at && b.published_at) return 1;
+        return a.url.localeCompare(b.url);
+      });
+
+    const sourceTexts: string[] = [];
+    for (const source of clusterSources) {
+      const key = `${source.publisher_id}::${source.canonical_url}`;
+      const bodyText = articleTextByKey.get(key);
+      if (!bodyText) continue;
+
+      sourceTexts.push(
+        [
+          `Source URL: ${source.url}`,
+          `Source: ${source.publishers?.name ?? source.publisher_id}`,
+          source.title ? `Title hint: ${source.title}` : null,
+          source.published_at
+            ? `Published at: ${new Date(source.published_at).toISOString()}`
+            : null,
+          "Full text:",
+          bodyText,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
+
+    if (sourceTexts.length === 0) {
+      throw new Error(
+        `No extracted article text available for cluster ${cluster.id}`,
+      );
+    }
+
+    const prompt = [
+      "You write a single news brief paragraph in Markdown (~600 characters).",
+      "The brief is for a story made of multiple sources.",
+      "Instructions:",
+      "1) Output exactly one Markdown paragraph (no headings, no lists).",
+      "2) Always start with an introductory phrase in bold (first characters must be bold).",
+      "3) Skew towards the newest developments whenever the story is ongoing (prioritize the most recent details you see in the sources).",
+      `Story title / topic: ${cluster.title}`,
+      cluster.selection_reason
+        ? `Why this story was selected: ${cluster.selection_reason}`
+        : null,
+      "Relevant sources (full texts), each delimited by ---:",
+      sourceTexts.map((t) => `---\n${t}\n---`).join("\n"),
+      "Write the paragraph now.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const generated = await generateGeminiJson(
+      prompt,
+      briefParagraphSchema,
+      {
+        model: RUN_BRIEF_MODEL,
+        nativeStructuredOutput: {
+          responseJsonSchema: briefParagraphResponseJsonSchema,
+        },
+      },
+    );
+
+    const cleaned = ensureStartsWithIntroBold(
+      replaceNewlinesWithSpaces(generated.markdown),
+    );
+    generatedStoryMarkdown.push(cleaned);
+    console.log(
+      `[worker:runs] ${new Date().toISOString()} [run:${runId}] brief: cluster paragraph ok`,
+      {
+        clusterId: cluster.id,
+        title: cluster.title,
+        rawMarkdownChars: generated.markdown.length,
+        cleanedMarkdownChars: cleaned.length,
+        cleanedPreview: cleaned.slice(0, 280),
+      },
+    );
+  }
+
+  const { data: briefRow, error: briefInsertError } = await supabase
+    .from("briefs")
+    .insert({
+      title: "Parrafos brief",
+      status: "published",
+      published_at: new Date().toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (briefInsertError) {
+    throw new Error(briefInsertError.message);
+  }
+  if (!briefRow?.id) {
+    throw new Error("Unable to create brief record");
+  }
+
+  const storyInsertRows = generatedStoryMarkdown.map((markdown, idx) => ({
+    brief_id: briefRow.id,
+    position: idx + 1,
+    markdown,
+  }));
+
+  const { error: storiesInsertError } = await supabase
+    .from("stories")
+    .insert(storyInsertRows);
+
+  if (storiesInsertError) {
+    throw new Error(storiesInsertError.message);
+  }
+
+  console.log(
+    `[worker:runs] ${new Date().toISOString()} [run:${runId}] brief: published`,
+    {
+      briefId: briefRow.id,
+      storyCount: generatedStoryMarkdown.length,
+    },
+  );
+}
+
+export async function retryBriefGenerationForFailedRun(
+  runId: string,
+): Promise<void> {
+  const payload = await getRunDetailPayload(runId);
+  if (!payload) {
+    throw new Error("Run not found");
+  }
+  if (payload.run.status !== "failed") {
+    throw new Error("Only failed runs can retry brief generation");
+  }
+  if (!canRetryBriefGeneration(payload)) {
+    throw new Error(
+      "Brief retry needs all publishers completed, selected story clusters, and extracted article text for each selected story.",
+    );
+  }
+
+  await createAndPublishBriefForRun(runId);
+
+  await updateRunProgress(runId, {
+    status: "completed",
+    ended_at: new Date().toISOString(),
+    error_message: null,
+    metadata: payload.metadata,
+  });
+}
+
 async function articleExists(
   publisherId: string,
   canonicalUrl: string,
@@ -494,6 +793,7 @@ async function articleExists(
 }
 
 export async function claimNextPendingRun(): Promise<{ id: string } | null> {
+  logRun(null, "claimNextPendingRun: searching pending run");
   const supabase = createSupabaseServiceClient();
   const { data: pending, error: pendingError } = await supabase
     .from("runs")
@@ -506,6 +806,8 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
     throw new Error(pendingError.message);
   }
   if (!pending) return null;
+
+  logRun(null, "claimNextPendingRun: attempting claim", { pendingRunId: pending.id });
 
   const metadata = createInitialRunMetadata();
   const { data: claimed, error: claimError } = await supabase
@@ -523,16 +825,31 @@ export async function claimNextPendingRun(): Promise<{ id: string } | null> {
   if (claimError) {
     throw new Error(claimError.message);
   }
+
+  logRun(null, "claimNextPendingRun: claimed", {
+    claimedRunId: claimed?.id ?? null,
+  });
   return claimed ?? null;
 }
 
 export async function processRun(runId: string): Promise<void> {
+  logRun(runId, "processRun: starting");
   const supabase = createSupabaseServiceClient();
   const metadata = createInitialRunMetadata();
   const extractConcurrency = getExtractConcurrency();
+
+  logRun(runId, "processRun: extract concurrency resolved", {
+    extractConcurrency,
+  });
+
   try {
     const publishers = await listPublishers();
     metadata.publisher_count = publishers.length;
+
+    logRun(runId, "processRun: publishers loaded", {
+      publisherCount: publishers.length,
+    });
+
     metadata.publishers = publishers.map((publisher) => ({
       publisher_id: publisher.id,
       publisher_name: publisher.name,
@@ -544,13 +861,16 @@ export async function processRun(runId: string): Promise<void> {
     }));
     await updateRunProgress(runId, { metadata });
     if (await isRunCancelled(runId)) {
+      logRun(runId, "processRun: cancelled before start; exiting early");
       return;
     }
 
     for (const publisher of publishers) {
       if (await isRunCancelled(runId)) {
+        logRun(runId, "processRun: cancelled during publisher loop; exiting early");
         return;
       }
+
       const publisherProgress = metadata.publishers.find(
         (entry) => entry.publisher_id === publisher.id,
       );
@@ -560,6 +880,13 @@ export async function processRun(runId: string): Promise<void> {
           publisherProgress.error_message = null;
           await updateRunProgress(runId, { metadata });
         }
+
+        logRun(runId, "publisher crawl: start", {
+          publisherId: publisher.id,
+          publisherName: publisher.name,
+          baseUrl: publisher.base_url,
+        });
+
         const home = await fetchHtmlWithRetries(publisher.base_url, {
           retries: 0,
         });
@@ -580,6 +907,14 @@ export async function processRun(runId: string): Promise<void> {
         if (publisherProgress) {
           publisherProgress.articles_found = normalizedUrls.length;
         }
+
+        logRun(runId, "publisher crawl: identified candidates", {
+          publisherId: publisher.id,
+          homeUrl: publisher.base_url,
+          candidatesTotal: candidates.length,
+          normalizedCandidateCount: normalizedUrls.length,
+        });
+
         metadata.articles.push(
           ...normalizedUrls.map((url) => {
             const identified = candidates.find(
@@ -602,12 +937,19 @@ export async function processRun(runId: string): Promise<void> {
         if (publisherProgress) {
           publisherProgress.status = "failed";
           publisherProgress.error_message =
-            error instanceof Error ? error.message : "Publisher crawl failed";
+            errorToMessage(error) ?? "Publisher crawl failed";
         }
+        logRun(runId, "publisher crawl: failed", {
+          publisherId: publisher.id,
+          publisherName: publisher.name,
+          baseUrl: publisher.base_url,
+          error: errorToMessage(error),
+        });
+
         metadata.errors.push({
           publisher_id: publisher.id,
           message:
-            error instanceof Error ? error.message : "Publisher crawl failed",
+            errorToMessage(error) ?? "Publisher crawl failed",
         });
       } finally {
         metadata.publishers_done += 1;
@@ -615,8 +957,20 @@ export async function processRun(runId: string): Promise<void> {
           publisherProgress.status = "completed";
         }
         await updateRunProgress(runId, { metadata });
+
+        logRun(runId, "publisher crawl: done", {
+          publisherId: publisher.id,
+          publisherName: publisher.name,
+          status: publisherProgress?.status ?? "unknown",
+          publishersDone: metadata.publishers_done,
+        });
       }
     }
+
+    logRun(runId, "processRun: identification stage complete", {
+      articlesFound: metadata.articles_found,
+      articlesTotalRecorded: metadata.articles.length,
+    });
 
     const identifiedCandidates: CandidateSource[] = metadata.articles.map(
       (article) => {
@@ -638,6 +992,9 @@ export async function processRun(runId: string): Promise<void> {
       },
     );
     await updateRunProgress(runId, { metadata });
+    logRun(runId, "processRun: clustering stage starting", {
+      identifiedCandidates: identifiedCandidates.length,
+    });
 
     const sourceByKey = new Map<string, CandidateSource>();
     for (const candidate of identifiedCandidates) {
@@ -655,6 +1012,10 @@ export async function processRun(runId: string): Promise<void> {
       sourceByKey,
     );
     metadata.clusters_total = persistedClusters.length;
+
+    logRun(runId, "clustering stage: persisted clusters", {
+      clustersTotal: persistedClusters.length,
+    });
 
     const sourceKeysInClusters = new Set<string>();
     for (const cluster of persistedClusters) {
@@ -686,9 +1047,19 @@ export async function processRun(runId: string): Promise<void> {
       (cluster) => cluster.status === "eligible",
     );
     metadata.clusters_eligible = eligibleClusters.length;
+
+    logRun(runId, "clustering stage: eligibility applied", {
+      clustersEligible: metadata.clusters_eligible,
+      clustersTotal: persistedClusters.length,
+    });
+
     const selectedClusterIds = await selectRelevantStories(eligibleClusters);
     await updateClusterSelectionStatuses(runId, eligibleClusters, selectedClusterIds);
     metadata.clusters_selected = selectedClusterIds.size;
+
+    logRun(runId, "clustering stage: selected clusters", {
+      clustersSelected: metadata.clusters_selected,
+    });
 
     const selectedCandidates: CandidateSource[] = [];
     const selectedSourceKeys = new Set<string>();
@@ -703,6 +1074,11 @@ export async function processRun(runId: string): Promise<void> {
       }
     }
     metadata.sources_selected = selectedSourceKeys.size;
+
+    logRun(runId, "selection stage: candidates selected for extraction", {
+      sourcesSelected: metadata.sources_selected,
+      selectedCandidatesCount: selectedCandidates.length,
+    });
 
     for (const candidate of identifiedCandidates) {
       const progress = metadata.articles.find(
@@ -719,6 +1095,10 @@ export async function processRun(runId: string): Promise<void> {
       }
     }
     await updateRunProgress(runId, { metadata });
+
+    logRun(runId, "extraction stage: checking existing articles", {
+      candidatesToCheck: selectedCandidates.length,
+    });
 
     const candidatesToExtract: CandidateSource[] = [];
     for (const candidate of selectedCandidates) {
@@ -740,24 +1120,46 @@ export async function processRun(runId: string): Promise<void> {
             progress.status = "skipped_existing";
             progress.error_message = null;
           }
+          logRun(runId, "extraction stage: skipping existing article", {
+            publisherId: candidate.publisherId,
+            url: candidate.url,
+            canonicalUrl: candidate.canonicalUrl,
+          });
         } else {
           candidatesToExtract.push(candidate);
+          logRun(runId, "extraction stage: queued for extraction", {
+            publisherId: candidate.publisherId,
+            url: candidate.url,
+            canonicalUrl: candidate.canonicalUrl,
+          });
         }
       } catch (error) {
         if (progress) {
           progress.status = "failed";
           progress.error_message =
-            error instanceof Error ? error.message : "Existing article check failed";
+            errorToMessage(error) ?? "Existing article check failed";
         }
+        logRun(runId, "extraction stage: existing check failed", {
+          publisherId: candidate.publisherId,
+          url: candidate.url,
+          canonicalUrl: candidate.canonicalUrl,
+          error: errorToMessage(error),
+        });
+
         metadata.errors.push({
           publisher_id: candidate.publisherId,
           url: candidate.url,
           message:
-            error instanceof Error ? error.message : "Existing article check failed",
+            errorToMessage(error) ?? "Existing article check failed",
         });
       }
       await updateRunProgress(runId, { metadata });
     }
+
+    logRun(runId, "extraction stage: starting article fetch+parse", {
+      candidatesToExtract: candidatesToExtract.length,
+      extractConcurrency,
+    });
 
     const extractedArticles = await mapWithConcurrency(
       candidatesToExtract,
@@ -776,6 +1178,13 @@ export async function processRun(runId: string): Promise<void> {
           articleProgress.error_message = null;
           await updateRunProgress(runId, { metadata });
         }
+
+        logRun(runId, "article extraction: start", {
+          publisherId: candidate.publisherId,
+          url: candidate.url,
+          canonicalUrl: candidate.canonicalUrl,
+        });
+
         try {
           const articleRes = await fetchHtmlWithRetries(candidate.url, {
             retries: 0,
@@ -799,6 +1208,13 @@ export async function processRun(runId: string): Promise<void> {
             await updateRunProgress(runId, { metadata });
           }
 
+          logRun(runId, "article extraction: success", {
+            publisherId: candidate.publisherId,
+            sourceUrl: articleRes.finalUrl,
+            canonicalUrl,
+            bodyChars: details.body_text?.length ?? null,
+          });
+
           return {
             ...candidate,
             sourceUrl: articleRes.finalUrl,
@@ -812,13 +1228,21 @@ export async function processRun(runId: string): Promise<void> {
           if (articleProgress) {
             articleProgress.status = "failed";
             articleProgress.error_message =
-              error instanceof Error ? error.message : "Article extraction failed";
+              errorToMessage(error) ?? "Article extraction failed";
           }
+
+          logRun(runId, "article extraction: failed", {
+            publisherId: candidate.publisherId,
+            url: candidate.url,
+            canonicalUrl: candidate.canonicalUrl,
+            error: errorToMessage(error),
+          });
+
           metadata.errors.push({
             publisher_id: candidate.publisherId,
             url: candidate.url,
             message:
-              error instanceof Error ? error.message : "Article extraction failed",
+              errorToMessage(error) ?? "Article extraction failed",
           });
           await updateRunProgress(runId, { metadata });
           return null;
@@ -826,12 +1250,22 @@ export async function processRun(runId: string): Promise<void> {
       },
     );
 
+    logRun(runId, "extraction stage: fetch+parse complete", {
+      extractedArticlesTotal: extractedArticles.length,
+      extractedArticlesNonNull: extractedArticles.filter(Boolean).length,
+    });
+
     for (const article of extractedArticles) {
       if (await isRunCancelled(runId)) {
         return;
       }
       if (!article) continue;
       try {
+        logRun(runId, "article upsert: start", {
+          publisherId: article.publisherId,
+          canonicalUrl: article.canonicalUrl,
+        });
+
         const { error: upsertError } = await supabase
           .from("articles")
           .upsert(
@@ -872,6 +1306,12 @@ export async function processRun(runId: string): Promise<void> {
           articleProgress.status = "upserted";
         }
         await updateRunProgress(runId, { metadata });
+
+        logRun(runId, "article upsert: success", {
+          publisherId: article.publisherId,
+          canonicalUrl: article.canonicalUrl,
+          articlesUpserted: metadata.articles_upserted,
+        });
       } catch (error) {
         const articleProgress = metadata.articles.find(
           (entry) =>
@@ -883,27 +1323,48 @@ export async function processRun(runId: string): Promise<void> {
         if (articleProgress) {
           articleProgress.status = "failed";
           articleProgress.error_message =
-            error instanceof Error ? error.message : "Article upsert failed";
+            errorToMessage(error) ?? "Article upsert failed";
         }
         metadata.errors.push({
           publisher_id: article.publisherId,
           url: article.sourceUrl,
-          message: error instanceof Error ? error.message : "Article upsert failed",
+          message: errorToMessage(error) ?? "Article upsert failed",
         });
         await updateRunProgress(runId, { metadata });
+
+        logRun(runId, "article upsert: failed", {
+          publisherId: article.publisherId,
+          canonicalUrl: article.canonicalUrl,
+          error: errorToMessage(error),
+        });
       }
     }
+
+    if (await isRunCancelled(runId)) {
+      logRun(runId, "processRun: cancelled after upserts; exiting early");
+      return;
+    }
+
+    logRun(runId, "publishing brief: start");
+    await createAndPublishBriefForRun(runId);
+    logRun(runId, "publishing brief: complete");
 
     await updateRunProgress(runId, {
       status: "completed",
       ended_at: new Date().toISOString(),
       metadata,
     });
+    logRun(runId, "processRun: completed", {
+      articlesUpserted: metadata.articles_upserted,
+      clustersSelected: metadata.clusters_selected,
+      sourcesSelected: metadata.sources_selected,
+    });
   } catch (error) {
+    logRun(runId, "processRun: fatal error", { error: errorToMessage(error) });
     await updateRunProgress(runId, {
       status: "failed",
       ended_at: new Date().toISOString(),
-      error_message: error instanceof Error ? error.message : "Run failed",
+      error_message: errorToMessage(error) ?? "Run failed",
       metadata,
     });
   }

@@ -16,6 +16,10 @@
 - `cleanHtmlForLLM` returns bounded text to reduce token/cost risk.
 - Retry behavior can be overridden by callers. Run orchestration (`src/lib/runs/process.ts`) explicitly sets `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
 
+## Worker Logging (Observability)
+- `fetchHtmlWithRetries` logs each attempt, failures, and the final status/url (without dumping full HTML).
+- `cleanHtmlForLLM` logs input/collapsed/output character counts and whether it truncated content.
+
 ## Common Changes
 - Tuning crawl behavior: modify timeout/retry/max-bytes constants in `fetch.ts`.
 - Improving model input quality: adjust cleanup selectors and max characters in `html.ts`.

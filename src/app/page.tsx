@@ -4,12 +4,14 @@ import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
 
 export const dynamic = "force-dynamic";
 
-function formatBriefDate(iso: string | null | undefined): string | null {
+function formatUpdatedAt(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).format(d);
 }
 
@@ -19,6 +21,9 @@ export default async function HomePage() {
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-6 py-16 pb-24">
       <header className="mb-12 border-b border-zinc-200 pb-8">
+        <p className="text-sm text-zinc-600">
+          Hello, and welcome to Parrafos.
+        </p>
         <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
           Parrafos
         </p>
@@ -37,14 +42,11 @@ export default async function HomePage() {
             <h2 className="text-2xl font-semibold text-zinc-900">
               {bundle.brief.title?.trim() || "Untitled brief"}
             </h2>
-            {(formatBriefDate(bundle.brief.published_at) ??
-              formatBriefDate(bundle.brief.created_at)) && (
+            {formatUpdatedAt(bundle.brief.created_at) ? (
               <p className="mt-2 text-sm text-zinc-500">
-                {bundle.brief.published_at
-                  ? `Published ${formatBriefDate(bundle.brief.published_at)}`
-                  : formatBriefDate(bundle.brief.created_at)}
+                Updated at {formatUpdatedAt(bundle.brief.created_at)}
               </p>
-            )}
+            ) : null}
           </div>
 
           <div className="space-y-10">

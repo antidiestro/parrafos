@@ -5,7 +5,7 @@
 - Keep route-level concerns here: rendering, form wiring, server action invocation, and route handler input/output validation.
 
 ## What Lives Here
-- `page.tsx`: public homepage (`/`), reads latest published brief + stories.
+- `page.tsx`: public homepage (`/`), reads latest published brief + stories and shows an `Updated at HH:MM` timestamp.
 - `admin/`: admin UI and server actions for publishers and runs.
 - `api/gemini/generate/route.ts`: internal API endpoint for text generation.
 

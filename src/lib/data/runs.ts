@@ -29,6 +29,12 @@ export type RunDetailPayload = {
   metadata: ReturnType<typeof parseRunMetadata>;
   articles: RunArticleWithPublisher[];
   clusters: RunStoryClusterWithSources[];
+  /**
+   * Keys `${publisher_id}::${canonical_url}` where `articles.body_text` is
+   * non-empty, for sources in selected clusters — same lookup scope as brief
+   * generation (any run), not only `articles.run_id = this run`.
+   */
+  briefArticleBodyKeys: string[];
 };
 
 export type RunStoryClusterSourceWithPublisher = Pick<
@@ -119,6 +125,52 @@ export async function listRunArticles(
   }));
 }
 
+/** Same key shape as `createAndPublishBriefForRun` article text map. */
+export function articleBodyLookupKey(
+  publisherId: string,
+  canonicalUrl: string,
+) {
+  return `${publisherId}::${canonicalUrl}`;
+}
+
+async function loadBriefArticleBodyKeysForSources(
+  sources: Array<{ publisher_id: string; canonical_url: string }>,
+): Promise<string[]> {
+  const urlsByPublisher = new Map<string, Set<string>>();
+  for (const source of sources) {
+    const set = urlsByPublisher.get(source.publisher_id) ?? new Set<string>();
+    set.add(source.canonical_url);
+    urlsByPublisher.set(source.publisher_id, set);
+  }
+
+  const keys = new Set<string>();
+  if (urlsByPublisher.size === 0) {
+    return [];
+  }
+
+  const supabase = createSupabaseServiceClient();
+  for (const [publisherId, canonicalUrlsSet] of urlsByPublisher) {
+    const canonicalUrls = Array.from(canonicalUrlsSet);
+    const { data, error } = await supabase
+      .from("articles")
+      .select("publisher_id,canonical_url,body_text")
+      .eq("publisher_id", publisherId)
+      .in("canonical_url", canonicalUrls);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    for (const row of data ?? []) {
+      if (!row.body_text?.trim()) continue;
+      keys.add(
+        articleBodyLookupKey(row.publisher_id, row.canonical_url),
+      );
+    }
+  }
+
+  return Array.from(keys);
+}
+
 export async function getRunDetailPayload(
   runId: string,
 ): Promise<RunDetailPayload | null> {
@@ -127,11 +179,23 @@ export async function getRunDetailPayload(
   const articles = await listRunArticles(runId);
   const clusters = await listRunStoryClusters(runId);
 
+  const selectedSources = clusters
+    .filter((c) => c.status === "selected")
+    .flatMap((c) =>
+      c.sources.map((s) => ({
+        publisher_id: s.publisher_id,
+        canonical_url: s.canonical_url,
+      })),
+    );
+  const briefArticleBodyKeys =
+    await loadBriefArticleBodyKeysForSources(selectedSources);
+
   return {
     run,
     metadata: parseRunMetadata(run.metadata),
     articles,
     clusters,
+    briefArticleBodyKeys,
   };
 }
 

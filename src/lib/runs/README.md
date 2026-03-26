@@ -7,8 +7,15 @@
 - `process.ts`
   - `claimNextPendingRun()`: atomically claims one `runs` row from `pending` to `running`.
   - `processRun(runId)`: processes all publishers, clusters identified sources into stories, selects relevant clusters, and extracts/upserts selected article sources.
+  - `retryBriefGenerationForFailedRun(runId)`: when a run is `failed` but extraction and cluster selection already succeeded, runs brief generation again and sets the run to `completed` (admin-triggered).
+- `brief-retry.ts`: `getBriefRetryAvailability(payload)` explains whether admin brief retry applies and why not; `canRetryBriefGeneration(payload)` is true when availability is `available` (selected clusters present, extracted body text per selected story; uses `briefArticleBodyKeys` from the run detail payload so `skipped_existing` sources still count when bodies live on other runs’ article rows).
 - `constants.ts`: run model defaults used in identification, clustering, relevance selection, and extraction.
 - `progress.ts`: shared metadata types and parsing helpers for run-progress read models/UI.
+
+## Worker Logging (Observability)
+- `process.ts` emits `console.log` output with the prefix `[worker:runs]` for major lifecycle stages and per-item outcomes.
+- Logs include `runId` context, publisher start/finish + candidate counts, article queued/skipped, extraction success/failure, and article upsert results.
+- Low-level HTML fetch/cleanup logs are emitted from `src/lib/extract/fetch.ts` and `src/lib/extract/html.ts`.
 
 ## Run Lifecycle Contract
 - Status progression: `pending` -> `running` -> `completed` or `failed`.
@@ -48,6 +55,11 @@
   4. skip selected sources already present in DB,
   5. run article fetch + parse in parallel with bounded concurrency,
   6. commit article upserts sequentially in input order.
+- After extracting selected sources, the worker generates a published brief:
+  - one Gemini summary paragraph per selected story cluster (~600 chars), via structured JSON output (`markdown` field),
+  - persisted into `briefs` + `stories`,
+  - stories are ordered by descending `run_story_clusters.source_count` (tie-breaker: newest source).
+  - logs each successful cluster paragraph and the final `briefId` + story count to the console (`[worker:runs] … brief:`); Gemini JSON parse failures log raw model text under `[gemini] generateGeminiJson:` (see `src/lib/gemini/generate.ts`).
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`).
 - Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.
 

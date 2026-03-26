@@ -13,11 +13,12 @@
 ## Contracts and Invariants
 - Empty text responses throw.
 - JSON extraction:
-  - appends strict JSON-only instruction
-  - can request native structured output mode (`application/json` + response schema)
+  - appends strict JSON-only instruction when **`nativeStructuredOutput` is not** set (structured responses rely on API `application/json` + schema instead)
+  - can request native structured output: `application/json` plus **`responseJsonSchema`** for JSON Schema objects (or **`responseSchema`** for OpenAPI-style Gemini schemas — mutually exclusive)
   - strips optional markdown code fences
   - parses JSON and validates with Zod schema
 - Errors are surfaced with useful messages for caller-level handling.
+- When `JSON.parse` fails on model text, or Zod validation fails, details are **`console.error`**-logged under `[gemini] generateGeminiJson:` (including a length-bounded raw string for parse failures).
 
 ## Common Changes
 - Prompt behavior changes: update callers and this module docs together.

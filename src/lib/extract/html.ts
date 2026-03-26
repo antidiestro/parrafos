@@ -6,5 +6,16 @@ export function cleanHtmlForLLM(html: string): string {
   const $ = load(html);
   $("head,style,script,svg").remove();
   const content = $("body").html() ?? $.root().html() ?? "";
-  return content.replace(/\s+/g, " ").trim().slice(0, MAX_CHARS);
+  const collapsed = content.replace(/\s+/g, " ").trim();
+  const output = collapsed.slice(0, MAX_CHARS);
+  console.log(
+    `[worker:runs] ${new Date().toISOString()} cleanHtmlForLLM`,
+    {
+      inputChars: html.length,
+      collapsedChars: collapsed.length,
+      outputChars: output.length,
+      truncated: collapsed.length > MAX_CHARS,
+    },
+  );
+  return output;
 }

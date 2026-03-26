@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/auth/require-admin";
+import { retryBriefGenerationForFailedRun } from "@/lib/runs/process";
 import { createInitialRunMetadata } from "@/lib/runs/progress";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+
+function errorToMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export type RunActionState = { error?: string; success?: string } | null;
 
@@ -27,6 +32,22 @@ export async function startRunAction(
 
   revalidatePath("/admin/runs");
   return { success: "Run queued." };
+}
+
+export async function retryBriefGenerationAction(
+  runId: string,
+): Promise<RunActionState> {
+  await requireAdminSession();
+  try {
+    await retryBriefGenerationForFailedRun(runId);
+  } catch (error) {
+    return { error: errorToMessage(error) };
+  }
+
+  revalidatePath("/admin/runs");
+  revalidatePath(`/admin/runs/${runId}`);
+  revalidatePath("/");
+  return { success: "Brief published; run marked completed." };
 }
 
 export async function cancelRunAction(runId: string): Promise<RunActionState> {
