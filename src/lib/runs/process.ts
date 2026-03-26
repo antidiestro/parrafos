@@ -3,8 +3,12 @@ import { z } from "zod";
 import type { Json } from "@/database.types";
 import { listPublishers } from "@/lib/data/publishers";
 import { getRunDetailPayload } from "@/lib/data/runs";
+import {
+  extractArticleCandidatesFromHomepage,
+  extractArticleMetadata,
+} from "@/lib/extract/article-candidates";
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
-import { cleanHtmlForLLM, cleanTextForLLM } from "@/lib/extract/html";
+import { cleanTextForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import {
   RUN_CLUSTER_MODEL,
@@ -20,7 +24,8 @@ import {
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 const MIN_SOURCES_PER_CLUSTER = 3;
-const MAX_RELEVANT_STORIES = 8;
+const TARGET_CLUSTER_COUNT = 10;
+const MAX_RELEVANT_STORIES = 6;
 
 function errorToMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -58,6 +63,11 @@ type ExtractedArticle = CandidateSource & {
   bodyText: string;
 };
 
+type PrefetchedArticle = CandidateSource & {
+  sourceUrl: string;
+  html: string;
+};
+
 type PersistedCluster = {
   id: string;
   title: string;
@@ -81,18 +91,6 @@ function toClusterStatus(
   }
   return "clustered";
 }
-
-const articleListSchema = z.object({
-  articles: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1).optional(),
-        published_at: z.string().trim().min(1).nullable().optional(),
-        url: z.string().trim().min(1),
-      }),
-    )
-    .max(15),
-});
 
 const clusterSchema = z.object({
   stories: z.array(
@@ -121,10 +119,7 @@ const clusterResponseJsonSchema = {
   required: ["stories"],
 };
 
-const articleDetailsSchema = z.object({
-  canonical_url: z.string().trim().min(1).nullable().optional(),
-  title: z.string().trim().min(1).nullable().optional(),
-  published_at: z.string().trim().min(1).nullable().optional(),
+const articleBodySchema = z.object({
   body_text: z.string().trim().min(1),
 });
 
@@ -188,13 +183,6 @@ function toCanonicalUrl(raw: string, baseUrl: string): string | null {
   } catch {
     return null;
   }
-}
-
-function toTimestampOrNull(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
 }
 
 function getExtractConcurrency(): number {
@@ -264,36 +252,15 @@ async function isRunCancelled(runId: string): Promise<boolean> {
   return data?.status === "cancelled";
 }
 
-async function extractArticleUrls(
-  homeUrl: string,
-  cleanedHtml: string,
-): Promise<{ title?: string; published_at?: string | null; url: string }[]> {
-  const result = await generateGeminiJson(
-    [
-      "You extract article links from a publisher homepage.",
-      'Return JSON object: {"articles":[{"title":"...","published_at":"...","url":"..."}]}',
-      "Only include news article URLs, at most 15 items.",
-      "Include published_at when visible in the homepage content, else null.",
-      `Homepage URL: ${homeUrl}`,
-      "HTML:",
-      cleanedHtml,
-    ].join("\n"),
-    articleListSchema,
-    { model: RUN_EXTRACT_MODEL },
-  );
-  return result.articles.slice(0, 15);
-}
-
-async function extractArticleDetails(
+async function extractArticleBodyText(
   url: string,
   cleanedText: string,
   identifiedTitle: string | null,
 ) {
   return generateGeminiJson(
     [
-      "Extract article details from this plain text.",
-      "Return JSON object with keys: canonical_url, title, published_at, body_text.",
-      "published_at must be ISO-8601 datetime when possible, else null.",
+      "Extract full article text from this plain text.",
+      'Return JSON object with only {"body_text":"..."}',
       "body_text must be the full article text, no summaries.",
       identifiedTitle ? `Identified title hint: ${identifiedTitle}` : null,
       `Article URL: ${url}`,
@@ -302,7 +269,7 @@ async function extractArticleDetails(
     ]
       .filter(Boolean)
       .join("\n"),
-    articleDetailsSchema,
+    articleBodySchema,
     { model: RUN_EXTRACT_MODEL },
   );
 }
@@ -341,6 +308,7 @@ async function clusterCandidatesIntoStories(candidates: CandidateSource[]) {
   const response = await generateGeminiJson(
     [
       "Group only clearly related sources into specific stories.",
+      `Target ${TARGET_CLUSTER_COUNT} story clusters when evidence supports it.`,
       "Each source_key can appear in at most one story.",
       "Only group sources that describe one concrete event or development.",
       "Leave uncertain sources unassigned.",
@@ -517,7 +485,8 @@ async function selectRelevantStories(clusters: PersistedCluster[]) {
   const response = await generateGeminiJson(
     [
       "Choose the most relevant stories for extraction.",
-      `Return up to ${MAX_RELEVANT_STORIES} cluster IDs as selected_cluster_ids.`,
+      `Return exactly ${MAX_RELEVANT_STORIES} cluster IDs when there are at least ${MAX_RELEVANT_STORIES} eligible stories.`,
+      `If there are fewer than ${MAX_RELEVANT_STORIES} eligible stories, return all eligible cluster IDs.`,
       "Focus on high-impact and broadly relevant stories.",
       "Prefer selecting none over selecting weak or uncertain clusters.",
       "Stories:",
@@ -927,10 +896,9 @@ export async function processRun(runId: string): Promise<void> {
         const home = await fetchHtmlWithRetries(publisher.base_url, {
           retries: 0,
         });
-        const cleanedHomeHtml = cleanHtmlForLLM(home.html);
-        const candidates = await extractArticleUrls(
+        const candidates = extractArticleCandidatesFromHomepage(
           publisher.base_url,
-          cleanedHomeHtml,
+          home.html,
         );
         const normalizedUrls = Array.from(
           new Set(
@@ -954,18 +922,14 @@ export async function processRun(runId: string): Promise<void> {
 
         metadata.articles.push(
           ...normalizedUrls.map((url) => {
-            const identified = candidates.find(
-              (candidate) =>
-                toCanonicalUrl(candidate.url, publisher.base_url) === url,
-            );
             return {
-            publisher_id: publisher.id,
-            url,
-            canonical_url: null,
-            title: identified?.title ?? null,
-            published_at: toTimestampOrNull(identified?.published_at),
-            status: "identified" as const,
-            error_message: null,
+              publisher_id: publisher.id,
+              url,
+              canonical_url: null,
+              title: null,
+              published_at: null,
+              status: "identified" as const,
+              error_message: null,
             };
           }),
         );
@@ -1009,29 +973,132 @@ export async function processRun(runId: string): Promise<void> {
       articlesTotalRecorded: metadata.articles.length,
     });
 
-    const identifiedCandidates: CandidateSource[] = metadata.articles.map(
-      (article) => {
-        const publisher = metadata.publishers.find(
-          (entry) => entry.publisher_id === article.publisher_id,
-        );
-        const canonicalUrl = article.canonical_url ?? article.url;
-        article.canonical_url = canonicalUrl;
-        article.status = "clustering";
+    logRun(runId, "metadata stage: starting metadata prefetch", {
+      candidateCount: metadata.articles.length,
+      extractConcurrency,
+    });
+
+    const metadataReadyCandidates = await mapWithConcurrency(
+      metadata.articles,
+      extractConcurrency,
+      async (article): Promise<PrefetchedArticle | null> => {
+        if (await isRunCancelled(runId)) {
+          return null;
+        }
+        article.status = "metadata_fetching";
         article.error_message = null;
-        return {
-          publisherId: article.publisher_id,
-          publisherName: publisher?.publisher_name ?? article.publisher_id,
-          url: article.url,
-          canonicalUrl,
-          title: article.title,
-          publishedAt: article.published_at,
-        };
+        await updateRunProgress(runId, { metadata });
+
+        try {
+          const articleRes = await fetchHtmlWithRetries(article.url, {
+            retries: 0,
+          });
+          const metadataResult = extractArticleMetadata(
+            articleRes.finalUrl,
+            articleRes.html,
+          );
+          if (!metadataResult) {
+            article.status = "not_selected_for_extraction";
+            article.error_message =
+              "Discarded: missing Article/NewsArticle JSON-LD and no article:published_time meta.";
+            await updateRunProgress(runId, { metadata });
+            logRun(runId, "metadata stage: discarded missing metadata", {
+              publisherId: article.publisher_id,
+              url: article.url,
+              finalUrl: articleRes.finalUrl,
+            });
+            return null;
+          }
+
+          const canonicalUrl =
+            toCanonicalUrl(
+              metadataResult.canonicalUrl ?? articleRes.finalUrl,
+              articleRes.finalUrl,
+            ) ?? article.url;
+          article.canonical_url = canonicalUrl;
+          article.title = metadataResult.title ?? null;
+          article.published_at = metadataResult.publishedAt ?? null;
+          article.status = "metadata_ready";
+          article.error_message = null;
+          await updateRunProgress(runId, { metadata });
+
+          const publisher = metadata.publishers.find(
+            (entry) => entry.publisher_id === article.publisher_id,
+          );
+          return {
+            publisherId: article.publisher_id,
+            publisherName: publisher?.publisher_name ?? article.publisher_id,
+            url: article.url,
+            canonicalUrl,
+            title: article.title,
+            publishedAt: article.published_at,
+            sourceUrl: articleRes.finalUrl,
+            html: articleRes.html,
+          };
+        } catch (error) {
+          article.status = "failed";
+          article.error_message = errorToMessage(error) ?? "Metadata fetch failed";
+          metadata.errors.push({
+            publisher_id: article.publisher_id,
+            url: article.url,
+            message: errorToMessage(error) ?? "Metadata fetch failed",
+          });
+          await updateRunProgress(runId, { metadata });
+          logRun(runId, "metadata stage: failed", {
+            publisherId: article.publisher_id,
+            url: article.url,
+            error: errorToMessage(error),
+          });
+          return null;
+        }
       },
     );
+
+    const prefetchedByCandidateKey = new Map<string, PrefetchedArticle>();
+    for (const candidate of metadataReadyCandidates) {
+      if (!candidate) continue;
+      prefetchedByCandidateKey.set(`${candidate.publisherId}::${candidate.url}`, candidate);
+    }
+
+    const identifiedCandidates: CandidateSource[] = metadataReadyCandidates
+      .filter((candidate): candidate is PrefetchedArticle => Boolean(candidate))
+      .map((candidate) => ({
+        publisherId: candidate.publisherId,
+        publisherName: candidate.publisherName,
+        url: candidate.url,
+        canonicalUrl: candidate.canonicalUrl,
+        title: candidate.title,
+        publishedAt: candidate.publishedAt,
+      }));
+
+    logRun(runId, "metadata stage: prefetch complete", {
+      metadataReady: identifiedCandidates.length,
+      discardedOrFailed: metadata.articles.length - identifiedCandidates.length,
+    });
+
+    for (const article of metadata.articles) {
+      if (article.status === "metadata_ready") {
+        article.status = "clustering";
+      }
+    }
     await updateRunProgress(runId, { metadata });
+
     logRun(runId, "processRun: clustering stage starting", {
       identifiedCandidates: identifiedCandidates.length,
     });
+
+    const identifiedCandidateKeys = new Set(
+      identifiedCandidates.map((candidate) => `${candidate.publisherId}::${candidate.url}`),
+    );
+    for (const article of metadata.articles) {
+      if (
+        article.status === "clustering" &&
+        !identifiedCandidateKeys.has(`${article.publisher_id}::${article.url}`)
+      ) {
+        article.status = "not_selected_for_extraction";
+      }
+    }
+    await updateRunProgress(runId, { metadata });
 
     const sourceByKey = new Map<string, CandidateSource>();
     for (const candidate of identifiedCandidates) {
@@ -1223,25 +1290,25 @@ export async function processRun(runId: string): Promise<void> {
         });
 
         try {
-          const articleRes = await fetchHtmlWithRetries(candidate.url, {
-            retries: 0,
-          });
+          const prefetched = prefetchedByCandidateKey.get(
+            `${candidate.publisherId}::${candidate.url}`,
+          );
+          const articleRes = prefetched
+            ? {
+                finalUrl: prefetched.sourceUrl,
+                html: prefetched.html,
+              }
+            : await fetchHtmlWithRetries(candidate.url, { retries: 0 });
           const cleanedArticleText = cleanTextForLLM(articleRes.html);
-          const details = await extractArticleDetails(
+          const details = await extractArticleBodyText(
             articleRes.finalUrl,
             cleanedArticleText,
             candidate.title,
           );
-          const canonicalUrl =
-            toCanonicalUrl(
-              details.canonical_url ?? articleRes.finalUrl,
-              articleRes.finalUrl,
-            ) ?? candidate.canonicalUrl;
           if (articleProgress) {
-            articleProgress.canonical_url = canonicalUrl;
-            articleProgress.title = details.title ?? candidate.title;
-            articleProgress.published_at =
-              toTimestampOrNull(details.published_at) ?? candidate.publishedAt;
+            articleProgress.canonical_url = candidate.canonicalUrl;
+            articleProgress.title = candidate.title;
+            articleProgress.published_at = candidate.publishedAt;
             articleProgress.status = "extracted";
             await updateRunProgress(runId, { metadata });
           }
@@ -1249,18 +1316,17 @@ export async function processRun(runId: string): Promise<void> {
           logRun(runId, "article extraction: success", {
             publisherId: candidate.publisherId,
             sourceUrl: articleRes.finalUrl,
-            canonicalUrl,
+            canonicalUrl: candidate.canonicalUrl,
             bodyChars: details.body_text?.length ?? null,
           });
 
           return {
             ...candidate,
             sourceUrl: articleRes.finalUrl,
-            canonicalUrl,
-            title: details.title ?? candidate.title,
+            canonicalUrl: candidate.canonicalUrl,
+            title: candidate.title,
             bodyText: details.body_text,
-            publishedAt:
-              toTimestampOrNull(details.published_at) ?? candidate.publishedAt,
+            publishedAt: candidate.publishedAt,
           };
         } catch (error) {
           if (articleProgress) {

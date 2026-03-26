@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_MAX_BYTES = 1_500_000;
-const USER_AGENT = "parrafos-runner/1.0 (+https://parrafos.local)";
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 
 export type FetchHtmlResult = {
   finalUrl: string;
@@ -10,7 +10,7 @@ export type FetchHtmlResult = {
 
 export async function fetchHtmlWithRetries(
   url: string,
-  opts?: { retries?: number; timeoutMs?: number; maxBytes?: number },
+  opts?: { retries?: number; timeoutMs?: number },
 ): Promise<FetchHtmlResult> {
   const retries = opts?.retries ?? 2;
   let lastError: Error | null = null;
@@ -24,12 +24,10 @@ export async function fetchHtmlWithRetries(
           attempt: attempt + 1,
           maxAttempts: retries + 1,
           timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-          maxBytes: opts?.maxBytes ?? DEFAULT_MAX_BYTES,
         },
       );
       const result = await fetchHtml(url, {
         timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        maxBytes: opts?.maxBytes ?? DEFAULT_MAX_BYTES,
       });
 
       console.log(
@@ -65,7 +63,7 @@ export async function fetchHtmlWithRetries(
 
 async function fetchHtml(
   url: string,
-  opts: { timeoutMs: number; maxBytes: number },
+  opts: { timeoutMs: number },
 ): Promise<FetchHtmlResult> {
   const res = await fetch(url, {
     method: "GET",
@@ -87,9 +85,6 @@ async function fetchHtml(
   }
 
   const text = await res.text();
-  if (text.length > opts.maxBytes) {
-    throw new Error(`Response too large for ${url}`);
-  }
 
   return {
     finalUrl: res.url || url,

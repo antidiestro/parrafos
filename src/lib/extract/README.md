@@ -1,28 +1,37 @@
 # `src/lib/extract`
 
 ## Purpose
-- Low-level extraction utilities for fetching and cleaning HTML before LLM parsing.
+- Low-level extraction utilities for fetching HTML, deterministic candidate/metadata parsing, and LLM text cleanup.
 
 ## Key Files
-- `fetch.ts`: resilient HTML fetch with timeout, retries, redirect follow, content-type guard, and max-size guard.
+- `fetch.ts`: resilient HTML fetch with timeout, retries, redirect follow, and content-type guard.
 - `html.ts`: strips non-content nodes and returns bounded HTML/text variants for model input.
+- `article-candidates.ts`: deterministic homepage candidate discovery and article metadata extraction from JSON-LD/meta tags.
 
 ## Contracts and Invariants
 - `fetchHtmlWithRetries(url)` returns:
   - `finalUrl` (after redirects)
   - `html`
   - `status`
-- Non-HTML responses and oversized payloads are rejected.
-- `cleanHtmlForLLM` returns bounded HTML content for structure-sensitive prompts.
-- `cleanTextForLLM` returns bounded plain text for extraction prompts that do not need markup.
+- Non-HTML responses are rejected.
+- `extractArticleCandidatesFromHomepage(baseUrl, html)`:
+  - resolves relative links against `baseUrl`,
+  - keeps only URLs whose pathname has at least 3 non-empty segments,
+  - canonicalizes URLs and returns up to 15 candidates.
+- `extractArticleMetadata(articleUrl, html)`:
+  - first tries `application/ld+json` entries of type `NewsArticle`/`Article` (including arrays and `@graph`),
+  - falls back to meta tags only when `article:published_time` exists,
+  - returns `null` when neither source provides required metadata contract.
+- Run orchestration (`src/lib/runs/process.ts`) uses metadata extraction as an early gate: all identified candidates are metadata-validated before clustering/relevance selection.
+- `cleanTextForLLM` returns bounded plain text for body-text extraction prompts.
 - Retry behavior can be overridden by callers. Run orchestration (`src/lib/runs/process.ts`) explicitly sets `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
 
 ## Worker Logging (Observability)
 - `fetchHtmlWithRetries` logs each attempt, failures, and the final status/url (without dumping full HTML).
-- `cleanHtmlForLLM` and `cleanTextForLLM` log input/collapsed/output character counts and truncation.
+- `cleanTextForLLM` logs input/collapsed/output character counts and truncation.
 
 ## Common Changes
-- Tuning crawl behavior: modify timeout/retry/max-bytes constants in `fetch.ts`.
+- Tuning crawl behavior: modify timeout/retry settings in `fetch.ts`.
 - Improving model input quality: adjust cleanup selectors and max characters in `html.ts`.
 
 ## Verification

@@ -12,6 +12,8 @@ export type RunPublisherStatus = "pending" | "running" | "completed" | "failed";
 export type RunArticleStatus =
   | "pending"
   | "identified"
+  | "metadata_fetching"
+  | "metadata_ready"
   | "approving"
   | "approved"
   | "rejected"
@@ -137,6 +139,8 @@ function normalizeArticle(value: unknown): RunArticleProgress | null {
   const isValidStatus =
     status === "pending" ||
     status === "identified" ||
+    status === "metadata_fetching" ||
+    status === "metadata_ready" ||
     status === "approving" ||
     status === "approved" ||
     status === "rejected" ||
