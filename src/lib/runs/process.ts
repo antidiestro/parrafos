@@ -15,7 +15,9 @@ import { runClusterAndSelectStages } from "@/lib/runs/process/stage-cluster-and-
 import { runDiscoverCandidatesStage } from "@/lib/runs/process/stage-discover-candidates";
 import { runExtractBodiesStage } from "@/lib/runs/process/stage-extract-bodies";
 import { runPrefetchMetadataStage } from "@/lib/runs/process/stage-prefetch-metadata";
-import { runPublishBriefStage } from "@/lib/runs/process/stage-publish-brief";
+import { runComposeBriefParagraphsStage } from "@/lib/runs/process/stage-compose-brief-paragraphs";
+import { runGenerateStorySummariesStage } from "@/lib/runs/process/stage-generate-story-summaries";
+import { runPersistBriefOutputStage } from "@/lib/runs/process/stage-persist-brief-output";
 import { runUpsertArticlesStage } from "@/lib/runs/process/stage-upsert-articles";
 import { createInitialRunMetadata } from "@/lib/runs/progress";
 
@@ -45,7 +47,9 @@ export async function processRun(runId: string): Promise<void> {
     await runExtractBodiesStage(context);
     if (await isRunCancelled(runId)) return;
     await runUpsertArticlesStage(context);
-    if (!(await runPublishBriefStage(runId))) return;
+    if (!(await runGenerateStorySummariesStage(context))) return;
+    if (!(await runComposeBriefParagraphsStage(context))) return;
+    if (!(await runPersistBriefOutputStage(context))) return;
 
     await updateRunProgress(runId, {
       status: "completed",

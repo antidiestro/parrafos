@@ -28,8 +28,14 @@
   - stage implementation for `extract_bodies`, including local existing-article lookup helper.
 - `process/stage-upsert-articles.ts`
   - stage implementation for `upsert_articles`.
-- `process/stage-publish-brief.ts`
-  - stage implementation for `publish_brief`.
+- `process/stage-generate-story-summaries.ts`
+  - stage implementation for `generate_story_summaries`.
+- `process/stage-compose-brief-paragraphs.ts`
+  - stage implementation for `compose_brief_paragraphs`.
+- `process/stage-persist-brief-output.ts`
+  - stage implementation for `persist_brief_output`.
+- `process/publish-brief.ts`
+  - helper module for publish-stage internals: summary generation, brief composition, and persistence writes.
 - `brief-retry.ts`: `getBriefRetryAvailability(payload)` explains whether admin brief retry applies and why not; `canRetryBriefGeneration(payload)` is true when availability is `available` (selected clusters present, extracted body text per selected story; uses `briefArticleBodyKeys` from the run detail payload so `skipped_existing` sources still count when bodies live on other runs’ article rows). It also exposes extraction-retry availability helpers for failed runs.
 - `constants.ts`: run model defaults used in identification, clustering, relevance selection, and extraction.
 - `progress.ts`: shared metadata types and parsing helpers for run-progress read models/UI.
@@ -70,6 +76,9 @@
 - Progress updates are persisted during publisher and article processing so admin polling can show near-real-time state.
 - Stage attempts are persisted as explicit `run_stage_executions` rows so stage progress/retries can be inspected independently of JSON snapshots.
 - The worker checks for cancellation throughout processing and exits early without forcing `completed`/`failed` when a run is cancelled.
+- Publish stage checkpoints are persisted in `runs.metadata.publish`:
+  - `story_summaries`
+  - `brief_paragraphs`
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
@@ -104,12 +113,11 @@
   5. skip selected sources already present in DB,
   6. run body-text extraction sequentially (one source at a time) to avoid bursty model traffic, while reusing prefetched HTML when available,
   7. commit article upserts sequentially in input order.
-- After extracting selected sources, the worker generates a published brief:
-  - one Gemini summary paragraph per selected story cluster (~600 chars), via structured JSON output (`markdown` field),
-  - paragraph prompts enforce a latest-first structure: newest development first, then why it matters, then minimal context,
-  - persisted into `briefs` + `stories`,
-  - stories are ordered by descending `run_story_clusters.source_count` (tie-breaker: newest source).
-  - logs each successful cluster paragraph and the final `briefId` + story count to the console (`[worker:runs] … brief:`); Gemini JSON parse failures log raw model text under `[gemini] generateGeminiJson:` (see `src/lib/gemini/generate.ts`).
+- After extracting selected sources, publish work runs in three explicit stages:
+  - `generate_story_summaries`: generates one extended summary per selected cluster and checkpoints in `metadata.publish.story_summaries`.
+  - `compose_brief_paragraphs`: generates one coherent paragraph per checkpointed summary and checkpoints in `metadata.publish.brief_paragraphs`.
+  - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
+- Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
 - `discover_candidates` processes publishers in parallel (one concurrent task per configured publisher host) so homepage fetch and deterministic candidate discovery run simultaneously across sites.
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; prefetch scheduling is host-aware (global cap + per-host isolation, currently 1 in-flight request per host) to prevent single-host contention from dominating the worker pool; body-text extraction calls are intentionally sequential.
 - Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.

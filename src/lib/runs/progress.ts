@@ -66,6 +66,17 @@ export type RunMetadata = {
   errors: RunError[];
   publishers: RunPublisherProgress[];
   articles: RunArticleProgress[];
+  publish?: {
+    story_summaries?: Array<{
+      cluster_id: string;
+      title: string;
+      detail_markdown: string;
+    }>;
+    brief_paragraphs?: Array<{
+      cluster_id: string;
+      markdown: string;
+    }>;
+  };
 };
 
 export function createInitialRunMetadata(): RunMetadata {
@@ -88,6 +99,10 @@ export function createInitialRunMetadata(): RunMetadata {
     errors: [],
     publishers: [],
     articles: [],
+    publish: {
+      story_summaries: [],
+      brief_paragraphs: [],
+    },
   };
 }
 
@@ -224,5 +239,54 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
     errors,
     publishers,
     articles,
+    publish:
+      row.publish &&
+      typeof row.publish === "object" &&
+      !Array.isArray(row.publish)
+        ? {
+            story_summaries: Array.isArray(
+              (row.publish as Record<string, unknown>).story_summaries,
+            )
+              ? (
+                  (row.publish as Record<string, unknown>).story_summaries as Array<
+                    Record<string, unknown>
+                  >
+                )
+                  .map((entry) => ({
+                    cluster_id:
+                      typeof entry.cluster_id === "string" ? entry.cluster_id : "",
+                    title: typeof entry.title === "string" ? entry.title : "",
+                    detail_markdown:
+                      typeof entry.detail_markdown === "string"
+                        ? entry.detail_markdown
+                        : "",
+                  }))
+                  .filter(
+                    (entry) =>
+                      entry.cluster_id.length > 0 &&
+                      entry.title.length > 0 &&
+                      entry.detail_markdown.length > 0,
+                  )
+              : [],
+            brief_paragraphs: Array.isArray(
+              (row.publish as Record<string, unknown>).brief_paragraphs,
+            )
+              ? (
+                  (row.publish as Record<string, unknown>).brief_paragraphs as Array<
+                    Record<string, unknown>
+                  >
+                )
+                  .map((entry) => ({
+                    cluster_id:
+                      typeof entry.cluster_id === "string" ? entry.cluster_id : "",
+                    markdown: typeof entry.markdown === "string" ? entry.markdown : "",
+                  }))
+                  .filter(
+                    (entry) =>
+                      entry.cluster_id.length > 0 && entry.markdown.length > 0,
+                  )
+              : [],
+          }
+        : fallback.publish,
   };
 }

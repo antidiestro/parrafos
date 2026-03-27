@@ -130,8 +130,8 @@ export function getBriefRetryAvailability(
 
 /**
  * True when a failed run has persisted selected clusters with enough article
- * text for brief generation (mirrors `createAndPublishBriefForRun` lookups on
- * `articles`, not `run_id`).
+ * text for publish-stage retries (`generate_story_summaries` onward), based on
+ * `articles` lookup scope (not only `run_id`).
  */
 export function canRetryBriefGeneration(payload: RunDetailPayload): boolean {
   return getBriefRetryAvailability(payload).kind === "available";

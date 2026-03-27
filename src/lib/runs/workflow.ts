@@ -5,7 +5,9 @@ export const RUN_STAGES = [
   "select_clusters",
   "extract_bodies",
   "upsert_articles",
-  "publish_brief",
+  "generate_story_summaries",
+  "compose_brief_paragraphs",
+  "persist_brief_output",
 ] as const;
 
 export type RunStage = (typeof RUN_STAGES)[number];

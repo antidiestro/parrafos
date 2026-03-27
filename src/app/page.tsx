@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StoryMarkdown } from "@/components/story-markdown";
+import { BriefViewer } from "@/components/brief-viewer";
 import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
 
 export const dynamic = "force-dynamic";
@@ -49,22 +49,7 @@ export default async function HomePage() {
             ) : null}
           </div>
 
-          <div className="space-y-10">
-            {bundle.stories.length === 0 ? (
-              <p className="text-zinc-600">
-                This brief has no story blocks yet.
-              </p>
-            ) : (
-              bundle.stories.map((story) => (
-                <section
-                  key={story.id}
-                  className="border-l-2 border-zinc-200 pl-6"
-                >
-                  <StoryMarkdown markdown={story.markdown} />
-                </section>
-              ))
-            )}
-          </div>
+          <BriefViewer bundle={bundle} />
         </article>
       )}
 

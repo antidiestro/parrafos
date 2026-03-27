@@ -4,7 +4,7 @@
 - Centralized query layer for read operations used by pages and admin views.
 
 ## Key Files
-- `briefs.ts`: latest published brief + ordered stories bundle.
+- `briefs.ts`: latest published brief + ordered `brief_paragraphs`, each linked to a story summary and hydrated source metadata.
 - `publishers.ts`: list configured publishers.
 - `runs.ts`: list recent runs and load run detail payloads for admin progress views.
 
@@ -17,6 +17,7 @@
   - runs by `started_at desc`
 - Run detail helpers (`getRunById`, `listRunArticles`, `getRunDetailPayload`) hydrate progress primarily from normalized workflow tables (`run_publishers_progress`, `run_articles_progress`, `run_errors`) and run summary columns, with `runs.metadata` as fallback.
 - `getRunDetailPayload` returns `briefArticleBodyKeys`: publisher/canonical keys with non-empty `articles.body_text` for selected-cluster sources (globally, like brief generation), so admin brief-retry eligibility matches the worker when sources were `skipped_existing`.
+- `getLatestPublishedBriefWithStories` now reads from `brief_paragraphs` for homepage paragraph order, then joins linked stories (`detail_markdown`) and `story_articles`/`articles` source metadata for source pills and modal source lists.
 
 ## Common Changes
 - Add a new read model: create a new file in `data/` and keep output shape typed.

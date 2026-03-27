@@ -77,6 +77,51 @@ export type Database = {
           },
         ]
       }
+      brief_paragraphs: {
+        Row: {
+          brief_id: string
+          created_at: string
+          id: string
+          markdown: string
+          position: number
+          story_id: string
+          updated_at: string
+        }
+        Insert: {
+          brief_id: string
+          created_at?: string
+          id?: string
+          markdown: string
+          position: number
+          story_id: string
+          updated_at?: string
+        }
+        Update: {
+          brief_id?: string
+          created_at?: string
+          id?: string
+          markdown?: string
+          position?: number
+          story_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brief_paragraphs_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_paragraphs_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       briefs: {
         Row: {
           created_at: string
@@ -550,6 +595,7 @@ export type Database = {
         Row: {
           brief_id: string
           created_at: string
+          detail_markdown: string | null
           id: string
           markdown: string
           position: number
@@ -558,6 +604,7 @@ export type Database = {
         Insert: {
           brief_id: string
           created_at?: string
+          detail_markdown?: string | null
           id?: string
           markdown: string
           position: number
@@ -566,6 +613,7 @@ export type Database = {
         Update: {
           brief_id?: string
           created_at?: string
+          detail_markdown?: string | null
           id?: string
           markdown?: string
           position?: number
@@ -631,6 +679,9 @@ export type Database = {
         | "extract_bodies"
         | "upsert_articles"
         | "publish_brief"
+        | "generate_story_summaries"
+        | "compose_brief_paragraphs"
+        | "persist_brief_output"
       run_stage_status:
         | "pending"
         | "running"
@@ -774,6 +825,9 @@ export const Constants = {
         "extract_bodies",
         "upsert_articles",
         "publish_brief",
+        "generate_story_summaries",
+        "compose_brief_paragraphs",
+        "persist_brief_output",
       ],
       run_stage_status: [
         "pending",

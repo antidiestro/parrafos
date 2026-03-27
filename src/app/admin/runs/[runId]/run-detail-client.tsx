@@ -57,9 +57,17 @@ const STAGE_META: Record<
     label: "Upsert articles",
     description: "Persist extracted articles in the database.",
   },
-  publish_brief: {
-    label: "Publish brief",
-    description: "Generate and publish the final news brief.",
+  generate_story_summaries: {
+    label: "Generate story summaries",
+    description: "Create detailed summaries for each selected story cluster.",
+  },
+  compose_brief_paragraphs: {
+    label: "Compose brief paragraphs",
+    description: "Generate one coherent paragraph per selected story.",
+  },
+  persist_brief_output: {
+    label: "Persist brief output",
+    description: "Write brief, stories, source links, and paragraph rows.",
   },
 };
 
@@ -700,7 +708,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
                           </span>
                         </p>
                       ) : null}
-                      {stage === "publish_brief" ? (
+                      {stage === "persist_brief_output" ? (
                         <div className="space-y-2">
                           <p className="leading-relaxed">{briefRetryAvailability.headline}</p>
                           {canRetryBrief ? (

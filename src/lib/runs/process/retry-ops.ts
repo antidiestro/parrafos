@@ -11,7 +11,6 @@ import {
 } from "@/lib/runs/persistence/stages-repo";
 import {
   cleanTextForLLM,
-  createAndPublishBriefForRun,
   errorToMessage,
   extractArticleBodyText,
   findMetadataArticleProgress,
@@ -21,7 +20,63 @@ import {
   RUN_RELEVANCE_MODEL,
   updateRunProgress,
 } from "@/lib/runs/process/shared";
+import { runComposeBriefParagraphsStage } from "@/lib/runs/process/stage-compose-brief-paragraphs";
+import { runGenerateStorySummariesStage } from "@/lib/runs/process/stage-generate-story-summaries";
+import { runPersistBriefOutputStage } from "@/lib/runs/process/stage-persist-brief-output";
+import type { RunMetadata } from "@/lib/runs/progress";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+
+const PUBLISH_STAGES = [
+  "generate_story_summaries",
+  "compose_brief_paragraphs",
+  "persist_brief_output",
+] as const;
+
+type PublishStage = (typeof PUBLISH_STAGES)[number];
+
+function asPublishStage(stage: string | null | undefined): PublishStage | null {
+  if (!stage) return null;
+  return PUBLISH_STAGES.includes(stage as PublishStage)
+    ? (stage as PublishStage)
+    : null;
+}
+
+async function retryPublishStagesFromCurrentFailure(input: {
+  runId: string;
+  metadata: RunMetadata;
+  currentStage: string | null;
+}) {
+  const { runId, metadata, currentStage } = input;
+  const startStage = asPublishStage(currentStage) ?? "generate_story_summaries";
+
+  if (startStage !== "generate_story_summaries") {
+    const summaries = metadata.publish?.story_summaries ?? [];
+    if (summaries.length === 0) {
+      throw new Error(
+        "Cannot retry publish from compose/persist stage because story summary checkpoint is missing.",
+      );
+    }
+  }
+  if (startStage === "persist_brief_output") {
+    const paragraphs = metadata.publish?.brief_paragraphs ?? [];
+    if (paragraphs.length === 0) {
+      throw new Error(
+        "Cannot retry publish from persist stage because brief paragraph checkpoint is missing.",
+      );
+    }
+  }
+
+  if (startStage === "generate_story_summaries") {
+    await runGenerateStorySummariesStage({ runId, metadata });
+  }
+  if (
+    startStage === "generate_story_summaries" ||
+    startStage === "compose_brief_paragraphs"
+  ) {
+    await runComposeBriefParagraphsStage({ runId, metadata });
+  }
+  await runPersistBriefOutputStage({ runId, metadata });
+}
 
 export async function retryBriefGenerationForFailedRun(
   runId: string,
@@ -37,20 +92,10 @@ export async function retryBriefGenerationForFailedRun(
     );
   }
 
-  const publishAttempt = await startRunStage(runId, "publish_brief");
-  await appendRunEvent({
+  await retryPublishStagesFromCurrentFailure({
     runId,
-    stage: "publish_brief",
-    eventType: "retry_stage_started",
-    message: "Retry brief generation started",
-  });
-  await createAndPublishBriefForRun(runId);
-  await completeRunStage(runId, "publish_brief", publishAttempt);
-  await appendRunEvent({
-    runId,
-    stage: "publish_brief",
-    eventType: "retry_stage_completed",
-    message: "Retry brief generation completed",
+    metadata: payload.metadata,
+    currentStage: payload.run.current_stage,
   });
   await updateRunProgress(runId, {
     status: "completed",
@@ -199,9 +244,11 @@ export async function retryFailedExtractionsForFailedRun(
 
   let briefPublished = false;
   if (canRetryBriefGeneration(refreshed)) {
-    const publishAttempt = await startRunStage(runId, "publish_brief");
-    await createAndPublishBriefForRun(runId);
-    await completeRunStage(runId, "publish_brief", publishAttempt);
+    await retryPublishStagesFromCurrentFailure({
+      runId,
+      metadata: refreshed.metadata,
+      currentStage: refreshed.run.current_stage,
+    });
     briefPublished = true;
     await updateRunProgress(runId, {
       status: "completed",

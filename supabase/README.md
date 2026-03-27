@@ -33,7 +33,15 @@
   - `run_articles_progress`,
   - `run_errors`,
   - `run_events`.
+- Publish workflow stages in `run_stage` now include:
+  - `generate_story_summaries`
+  - `compose_brief_paragraphs`
+  - `persist_brief_output`
 - `articles` stores extraction attribution in first-class columns: `source_url`, `extraction_model`, `clustering_model`, `relevance_selection_model`.
+- Editorial rendering now uses:
+  - `stories.detail_markdown` for extended per-story summaries (modal detail content),
+  - `brief_paragraphs` for final ordered one-paragraph-per-story brief copy (`brief_id`, `story_id`, `position`, `markdown`),
+  - `story_articles` to map each story to its source articles.
 
 ## Verification
 - Apply migration to target environment.
