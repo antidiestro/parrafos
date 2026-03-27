@@ -77,6 +77,7 @@
 - Candidate identification is deterministic (no LLM): homepage `<a href>` URLs are resolved/canonicalized and must have at least 3 pathname segments.
 - Article metadata validation is deterministic (no LLM): JSON-LD `NewsArticle`/`Article` is preferred; meta tags are only used when `article:published_time` exists.
 - All identified candidates go through a deterministic metadata prefetch stage before clustering.
+- Metadata prefetch first checks `articles` for an existing `(publisher_id, canonical_url)` match derived from the identified URL; when found, it reuses persisted metadata (`canonical_url`, `title`, `published_at`, `source_url`) and skips live URL fetch.
 - Candidates missing both valid JSON-LD and required meta fallback are discarded before clustering.
 - Body text extraction still uses LLM parsing on cleaned article text.
 - Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.
@@ -109,7 +110,8 @@
   - persisted into `briefs` + `stories`,
   - stories are ordered by descending `run_story_clusters.source_count` (tie-breaker: newest source).
   - logs each successful cluster paragraph and the final `briefId` + story count to the console (`[worker:runs] … brief:`); Gemini JSON parse failures log raw model text under `[gemini] generateGeminiJson:` (see `src/lib/gemini/generate.ts`).
-- Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; body-text extraction calls are intentionally sequential.
+- `discover_candidates` processes publishers in parallel (one concurrent task per configured publisher host) so homepage fetch and deterministic candidate discovery run simultaneously across sites.
+- Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; prefetch scheduling is host-aware (global cap + per-host isolation, currently 1 in-flight request per host) to prevent single-host contention from dominating the worker pool; body-text extraction calls are intentionally sequential.
 - Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.
 
 ## Common Changes
