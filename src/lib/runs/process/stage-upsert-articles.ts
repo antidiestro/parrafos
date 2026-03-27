@@ -27,32 +27,48 @@ export async function runUpsertArticlesStage(
     message: "Upsert articles stage started",
   });
 
-  for (const article of context.extractedArticles) {
-    if (await isRunCancelled(runId)) return;
-    if (!article) continue;
-    try {
-      const { error: upsertError } = await supabase.from("articles").upsert(
-        {
-          publisher_id: article.publisherId,
-          run_id: runId,
-          canonical_url: article.canonicalUrl,
-          title: article.title,
-          body_text: article.bodyText,
-          published_at: article.publishedAt,
-          source_url: article.sourceUrl,
-          extraction_model: RUN_EXTRACT_MODEL,
-          clustering_model: RUN_CLUSTER_MODEL,
-          relevance_selection_model: RUN_RELEVANCE_MODEL,
-          metadata: {
-            source_url: article.sourceUrl,
-            model: RUN_EXTRACT_MODEL,
-            clustering_model: RUN_CLUSTER_MODEL,
-            relevance_selection_model: RUN_RELEVANCE_MODEL,
-          },
-        },
-        { onConflict: "publisher_id,canonical_url" },
-      );
-      if (upsertError) throw new Error(upsertError.message);
+  const articlesToUpsert = context.extractedArticles.filter(
+    (article): article is NonNullable<(typeof context.extractedArticles)[number]> =>
+      Boolean(article),
+  );
+  if (articlesToUpsert.length === 0) {
+    await completeRunStage(runId, "upsert_articles", upsertStageAttempt);
+    await appendRunEvent({
+      runId,
+      stage: "upsert_articles",
+      eventType: "stage_completed",
+      message: "Upsert articles stage completed",
+    });
+    return;
+  }
+
+  if (await isRunCancelled(runId)) return;
+
+  try {
+    const rowsToUpsert = articlesToUpsert.map((article) => ({
+      publisher_id: article.publisherId,
+      run_id: runId,
+      canonical_url: article.canonicalUrl,
+      title: article.title,
+      body_text: article.bodyText,
+      published_at: article.publishedAt,
+      source_url: article.sourceUrl,
+      extraction_model: RUN_EXTRACT_MODEL,
+      clustering_model: RUN_CLUSTER_MODEL,
+      relevance_selection_model: RUN_RELEVANCE_MODEL,
+      metadata: {
+        source_url: article.sourceUrl,
+        model: RUN_EXTRACT_MODEL,
+        clustering_model: RUN_CLUSTER_MODEL,
+        relevance_selection_model: RUN_RELEVANCE_MODEL,
+      },
+    }));
+    const { error: upsertError } = await supabase
+      .from("articles")
+      .upsert(rowsToUpsert, { onConflict: "publisher_id,canonical_url" });
+    if (upsertError) throw new Error(upsertError.message);
+
+    for (const article of articlesToUpsert) {
       metadata.articles_upserted += 1;
       const publisherProgress = metadata.publishers.find(
         (entry) => entry.publisher_id === article.publisherId,
@@ -69,9 +85,12 @@ export async function runUpsertArticlesStage(
       );
       if (articleProgress) {
         articleProgress.status = "upserted";
+        articleProgress.error_message = null;
       }
-      await updateRunProgress(runId, { metadata });
-    } catch (error) {
+    }
+  } catch (error) {
+    const errorMessage = errorToMessage(error) ?? "Article upsert failed";
+    for (const article of articlesToUpsert) {
       const articleProgress = metadata.articles.find(
         (entry) =>
           entry.publisher_id === article.publisherId &&
@@ -81,17 +100,17 @@ export async function runUpsertArticlesStage(
       );
       if (articleProgress) {
         articleProgress.status = "failed";
-        articleProgress.error_message =
-          errorToMessage(error) ?? "Article upsert failed";
+        articleProgress.error_message = errorMessage;
       }
       metadata.errors.push({
         publisher_id: article.publisherId,
         url: article.sourceUrl,
-        message: errorToMessage(error) ?? "Article upsert failed",
+        message: errorMessage,
       });
-      await updateRunProgress(runId, { metadata });
     }
   }
+
+  await updateRunProgress(runId, { metadata });
 
   await completeRunStage(runId, "upsert_articles", upsertStageAttempt);
   await appendRunEvent({

@@ -120,7 +120,7 @@
   4. discard clusters with too few sources and select relevant stories,
   5. skip selected sources already present in DB,
   6. run body-text extraction sequentially (one source at a time) to avoid bursty model traffic, while reusing prefetched HTML when available,
-  7. commit article upserts sequentially in input order.
+  7. commit extracted article upserts in a single bulk write (`onConflict: publisher_id,canonical_url`) per stage run.
 - After extracting selected sources, publish work runs in three explicit stages:
   - `generate_story_summaries`: generates one extended summary per selected cluster and checkpoints in `run_story_summaries`.
   - `compose_brief_paragraphs`: generates one coherent paragraph per checkpointed summary and checkpoints in `metadata.publish.brief_paragraphs`.
