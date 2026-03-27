@@ -18,7 +18,7 @@ export async function fetchHtmlWithRetries(
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       console.log(
-        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: attempt`,
+        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: attempt`,
         {
           url,
           attempt: attempt + 1,
@@ -31,7 +31,7 @@ export async function fetchHtmlWithRetries(
       });
 
       console.log(
-        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: success`,
+        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: success`,
         {
           url,
           finalUrl: result.finalUrl,
@@ -45,7 +45,7 @@ export async function fetchHtmlWithRetries(
       const message = error instanceof Error ? error.message : String(error);
       lastError = error instanceof Error ? error : new Error("Fetch failed");
       console.log(
-        `[worker:runs] ${new Date().toISOString()} fetchHtmlWithRetries: attempt failed`,
+        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: attempt failed`,
         {
           url,
           attempt: attempt + 1,

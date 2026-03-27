@@ -16,34 +16,13 @@
 
 ## RLS and Access Model
 - Anonymous users read published editorial content.
-- Authenticated users manage editorial tables and read ingestion artifacts.
+- Authenticated users manage editorial tables and read ingestion artifacts where policies allow.
 - Service role performs ingestion writes and bypasses RLS.
 
-## Common Changes
-- Add/modify tables, enums, indexes, triggers in a new migration file.
-- Update policies with explicit intent comments in the migration itself.
-- Coordinate app/runtime changes with schema changes in the same PR.
-- Ingestion clustering persistence is stored in:
-  - `run_story_clusters` (story-level cluster rows per run),
-  - `run_story_cluster_sources` (source assignments per cluster with one-source-per-run uniqueness).
-- Publish story-summary checkpoints are stored in:
-  - `run_story_summaries` (latest summary per run-cluster, ordered by `position`).
-- Run workflow state persistence is split across:
-  - `runs` summary/model/stage columns,
-  - `run_stage_executions` (per-stage attempts),
-  - `run_publishers_progress`,
-  - `run_articles_progress`,
-  - `run_errors`,
-  - `run_events`.
-- Publish workflow stages in `run_stage` now include:
-  - `generate_story_summaries`
-  - `compose_brief_paragraphs`
-  - `persist_brief_output`
-- `articles` stores extraction attribution in first-class columns: `source_url`, `extraction_model`, `clustering_model`, `relevance_selection_model`.
-- Editorial rendering now uses:
-  - `stories.detail_markdown` for extended per-story summaries (modal detail content),
-  - `brief_paragraphs` for final ordered one-paragraph-per-story brief copy (`brief_id`, `story_id`, `position`, `markdown`),
-  - `story_articles` to map each story to its source articles.
+## Current ingestion / editorial shape
+- **`runs`**: workflow console creates a row per execution (`status`: `running` → `completed` | `failed`), with `extract_model`, `cluster_model`, `relevance_model`, and optional `metadata` JSON. Legacy normalized progress tables and `run_stage` enums were removed in `20260327200000_prune_legacy_run_workflow.sql`.
+- **`articles`**: one row per `(publisher_id, canonical_url)`; stores `source_url`, `extraction_model`, `clustering_model`, `relevance_selection_model`, body text, and `run_id` for the extracting run.
+- **Editorial**: `briefs`, `stories` (`detail_markdown`), ordered **`brief_paragraphs`**, and **`story_articles`** linking stories to source articles.
 
 ## Verification
 - Apply migration to target environment.

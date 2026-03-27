@@ -173,467 +173,37 @@ export type Database = {
         }
         Relationships: []
       }
-      run_articles_progress: {
-        Row: {
-          canonical_url: string | null
-          created_at: string
-          error_message: string | null
-          id: string
-          published_at: string | null
-          publisher_id: string
-          run_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          url: string
-        }
-        Insert: {
-          canonical_url?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          published_at?: string | null
-          publisher_id: string
-          run_id: string
-          status: string
-          title?: string | null
-          updated_at?: string
-          url: string
-        }
-        Update: {
-          canonical_url?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          published_at?: string | null
-          publisher_id?: string
-          run_id?: string
-          status?: string
-          title?: string | null
-          updated_at?: string
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_articles_progress_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "publishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_articles_progress_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_errors: {
-        Row: {
-          created_at: string
-          id: string
-          message: string
-          publisher_id: string | null
-          run_id: string
-          stage: Database["public"]["Enums"]["run_stage"] | null
-          url: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message: string
-          publisher_id?: string | null
-          run_id: string
-          stage?: Database["public"]["Enums"]["run_stage"] | null
-          url?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message?: string
-          publisher_id?: string | null
-          run_id?: string
-          stage?: Database["public"]["Enums"]["run_stage"] | null
-          url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_errors_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "publishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_errors_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_events: {
-        Row: {
-          context: Json | null
-          created_at: string
-          event_type: string
-          id: string
-          message: string | null
-          run_id: string
-          stage: Database["public"]["Enums"]["run_stage"] | null
-        }
-        Insert: {
-          context?: Json | null
-          created_at?: string
-          event_type: string
-          id?: string
-          message?: string | null
-          run_id: string
-          stage?: Database["public"]["Enums"]["run_stage"] | null
-        }
-        Update: {
-          context?: Json | null
-          created_at?: string
-          event_type?: string
-          id?: string
-          message?: string | null
-          run_id?: string
-          stage?: Database["public"]["Enums"]["run_stage"] | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_events_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_publishers_progress: {
-        Row: {
-          articles_found: number
-          articles_upserted: number
-          base_url: string
-          created_at: string
-          error_message: string | null
-          id: string
-          publisher_id: string
-          publisher_name: string
-          run_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          articles_found?: number
-          articles_upserted?: number
-          base_url: string
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          publisher_id: string
-          publisher_name: string
-          run_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          articles_found?: number
-          articles_upserted?: number
-          base_url?: string
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          publisher_id?: string
-          publisher_name?: string
-          run_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_publishers_progress_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "publishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_publishers_progress_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_stage_executions: {
-        Row: {
-          attempt: number
-          created_at: string
-          ended_at: string | null
-          error_message: string | null
-          heartbeat_at: string
-          id: string
-          resume_cursor: Json | null
-          run_id: string
-          stage: Database["public"]["Enums"]["run_stage"]
-          started_at: string
-          status: Database["public"]["Enums"]["run_stage_status"]
-          updated_at: string
-        }
-        Insert: {
-          attempt?: number
-          created_at?: string
-          ended_at?: string | null
-          error_message?: string | null
-          heartbeat_at?: string
-          id?: string
-          resume_cursor?: Json | null
-          run_id: string
-          stage: Database["public"]["Enums"]["run_stage"]
-          started_at?: string
-          status?: Database["public"]["Enums"]["run_stage_status"]
-          updated_at?: string
-        }
-        Update: {
-          attempt?: number
-          created_at?: string
-          ended_at?: string | null
-          error_message?: string | null
-          heartbeat_at?: string
-          id?: string
-          resume_cursor?: Json | null
-          run_id?: string
-          stage?: Database["public"]["Enums"]["run_stage"]
-          started_at?: string
-          status?: Database["public"]["Enums"]["run_stage_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_stage_executions_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_story_cluster_sources: {
-        Row: {
-          canonical_url: string
-          cluster_id: string
-          created_at: string
-          published_at: string | null
-          publisher_id: string
-          run_id: string
-          title: string | null
-          url: string
-        }
-        Insert: {
-          canonical_url: string
-          cluster_id: string
-          created_at?: string
-          published_at?: string | null
-          publisher_id: string
-          run_id: string
-          title?: string | null
-          url: string
-        }
-        Update: {
-          canonical_url?: string
-          cluster_id?: string
-          created_at?: string
-          published_at?: string | null
-          publisher_id?: string
-          run_id?: string
-          title?: string | null
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_story_cluster_sources_cluster_id_fkey"
-            columns: ["cluster_id"]
-            isOneToOne: false
-            referencedRelation: "run_story_clusters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_story_cluster_sources_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "publishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_story_cluster_sources_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_story_clusters: {
-        Row: {
-          created_at: string
-          id: string
-          run_id: string
-          selection_reason: string | null
-          source_count: number
-          status: string
-          summary: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          run_id: string
-          selection_reason?: string | null
-          source_count?: number
-          status?: string
-          summary?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          run_id?: string
-          selection_reason?: string | null
-          source_count?: number
-          status?: string
-          summary?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_story_clusters_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      run_story_summaries: {
-        Row: {
-          cluster_id: string
-          created_at: string
-          detail_markdown: string
-          id: string
-          position: number
-          run_id: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          cluster_id: string
-          created_at?: string
-          detail_markdown: string
-          id?: string
-          position: number
-          run_id: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          cluster_id?: string
-          created_at?: string
-          detail_markdown?: string
-          id?: string
-          position?: number
-          run_id?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "run_story_summaries_cluster_id_fkey"
-            columns: ["cluster_id"]
-            isOneToOne: false
-            referencedRelation: "run_story_clusters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "run_story_summaries_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       runs: {
         Row: {
-          articles_found: number
-          articles_upserted: number
           cluster_model: string | null
-          clusters_eligible: number
-          clusters_selected: number
-          clusters_total: number
-          current_stage: Database["public"]["Enums"]["run_stage"] | null
           ended_at: string | null
           error_message: string | null
           extract_model: string | null
           id: string
-          last_heartbeat_at: string | null
           metadata: Json | null
-          publisher_count: number
-          publishers_done: number
           relevance_model: string | null
-          sources_selected: number
-          stage_attempt: number
           started_at: string
           status: Database["public"]["Enums"]["run_status"]
         }
         Insert: {
-          articles_found?: number
-          articles_upserted?: number
           cluster_model?: string | null
-          clusters_eligible?: number
-          clusters_selected?: number
-          clusters_total?: number
-          current_stage?: Database["public"]["Enums"]["run_stage"] | null
           ended_at?: string | null
           error_message?: string | null
           extract_model?: string | null
           id?: string
-          last_heartbeat_at?: string | null
           metadata?: Json | null
-          publisher_count?: number
-          publishers_done?: number
           relevance_model?: string | null
-          sources_selected?: number
-          stage_attempt?: number
           started_at?: string
           status?: Database["public"]["Enums"]["run_status"]
         }
         Update: {
-          articles_found?: number
-          articles_upserted?: number
           cluster_model?: string | null
-          clusters_eligible?: number
-          clusters_selected?: number
-          clusters_total?: number
-          current_stage?: Database["public"]["Enums"]["run_stage"] | null
           ended_at?: string | null
           error_message?: string | null
           extract_model?: string | null
           id?: string
-          last_heartbeat_at?: string | null
           metadata?: Json | null
-          publisher_count?: number
-          publishers_done?: number
           relevance_model?: string | null
-          sources_selected?: number
-          stage_attempt?: number
           started_at?: string
           status?: Database["public"]["Enums"]["run_status"]
         }
@@ -719,24 +289,7 @@ export type Database = {
     }
     Enums: {
       brief_status: "draft" | "published"
-      run_stage:
-        | "discover_candidates"
-        | "prefetch_metadata"
-        | "cluster_sources"
-        | "select_clusters"
-        | "extract_bodies"
-        | "upsert_articles"
-        | "publish_brief"
-        | "generate_story_summaries"
-        | "compose_brief_paragraphs"
-        | "persist_brief_output"
-      run_stage_status:
-        | "pending"
-        | "running"
-        | "completed"
-        | "failed"
-        | "cancelled"
-      run_status: "pending" | "running" | "completed" | "failed" | "cancelled"
+      run_status: "running" | "completed" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -865,26 +418,7 @@ export const Constants = {
   public: {
     Enums: {
       brief_status: ["draft", "published"],
-      run_stage: [
-        "discover_candidates",
-        "prefetch_metadata",
-        "cluster_sources",
-        "select_clusters",
-        "extract_bodies",
-        "upsert_articles",
-        "publish_brief",
-        "generate_story_summaries",
-        "compose_brief_paragraphs",
-        "persist_brief_output",
-      ],
-      run_stage_status: [
-        "pending",
-        "running",
-        "completed",
-        "failed",
-        "cancelled",
-      ],
-      run_status: ["pending", "running", "completed", "failed", "cancelled"],
+      run_status: ["running", "completed", "failed"],
     },
   },
 } as const
