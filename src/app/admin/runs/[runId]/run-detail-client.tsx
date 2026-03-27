@@ -6,6 +6,7 @@ import {
   retryBriefGenerationAction,
   retryFailedExtractionsAction,
 } from "@/app/admin/runs/run-actions";
+import { RUN_STAGES, type RunStage } from "@/lib/runs/workflow";
 import type {
   RunArticleWithPublisher,
   RunDetailPayload,
@@ -23,6 +24,44 @@ type Props = {
 };
 
 type ArticleProgress = RunDetailPayload["metadata"]["articles"][number];
+type StageUiState = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+const STAGE_META: Record<
+  RunStage,
+  {
+    label: string;
+    description: string;
+  }
+> = {
+  discover_candidates: {
+    label: "Discover candidates",
+    description: "Find likely article URLs from publisher homepages.",
+  },
+  prefetch_metadata: {
+    label: "Prefetch metadata",
+    description: "Validate candidates and extract canonical article metadata.",
+  },
+  cluster_sources: {
+    label: "Cluster sources",
+    description: "Group related sources into story clusters.",
+  },
+  select_clusters: {
+    label: "Select clusters",
+    description: "Choose the most relevant clusters for this run.",
+  },
+  extract_bodies: {
+    label: "Extract bodies",
+    description: "Extract full body text for selected sources.",
+  },
+  upsert_articles: {
+    label: "Upsert articles",
+    description: "Persist extracted articles in the database.",
+  },
+  publish_brief: {
+    label: "Publish brief",
+    description: "Generate and publish the final news brief.",
+  },
+};
 
 /** Fixed locale so SSR (Node) and the browser agree during hydration. */
 function formatTime(value: string | null) {
@@ -75,6 +114,91 @@ function statusClass(status: string) {
     return "bg-violet-100 text-violet-800";
   }
   return "bg-zinc-100 text-zinc-700";
+}
+
+function stageStateClass(state: StageUiState) {
+  if (state === "completed") return "bg-green-100 text-green-800";
+  if (state === "running") return "bg-blue-100 text-blue-800";
+  if (state === "failed") return "bg-red-100 text-red-800";
+  if (state === "cancelled") return "bg-zinc-200 text-zinc-800";
+  return "bg-amber-100 text-amber-800";
+}
+
+function stageStateLabel(state: StageUiState) {
+  if (state === "completed") return "Completed";
+  if (state === "running") return "Running";
+  if (state === "failed") return "Failed";
+  if (state === "cancelled") return "Cancelled";
+  return "Pending";
+}
+
+function getStageUiState(
+  run: RunDetailPayload["run"],
+  stageIndex: number,
+): StageUiState {
+  if (run.status === "completed") {
+    return "completed";
+  }
+
+  const currentStage = run.current_stage as RunStage | null;
+  if (!currentStage) {
+    return stageIndex === 0 && run.status === "running" ? "running" : "pending";
+  }
+
+  const currentStageIndex = RUN_STAGES.indexOf(currentStage);
+  if (stageIndex < currentStageIndex) return "completed";
+  if (stageIndex > currentStageIndex) return "pending";
+
+  if (run.status === "failed") return "failed";
+  if (run.status === "cancelled") return "cancelled";
+  return "running";
+}
+
+function StageIcon({ state }: { state: StageUiState }) {
+  if (state === "completed") {
+    return (
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-green-200 bg-green-50 text-green-700">
+        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M7.8 13.7 4.5 10.4l-1.1 1.1 4.4 4.4L16.6 7l-1.1-1.1z" />
+        </svg>
+      </span>
+    );
+  }
+  if (state === "running") {
+    return (
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+        <span
+          className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+          aria-hidden="true"
+        />
+      </span>
+    );
+  }
+  if (state === "failed") {
+    return (
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700">
+        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm.8 11h-1.6v-1.6h1.6Zm0-3.2h-1.6V6.5h1.6Z" />
+        </svg>
+      </span>
+    );
+  }
+  if (state === "cancelled") {
+    return (
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 bg-zinc-100 text-zinc-700">
+        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm3.2 8.3H6.8V9.2h6.4Z" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700">
+      <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+        <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm.8 7.8V5.8H9.2V11l3.6 2.1.8-1.4Z" />
+      </svg>
+    </span>
+  );
 }
 
 function getArticleByProgress(
@@ -180,6 +304,33 @@ export function RunDetailClient({ runId, initialData }: Props) {
       stored: getArticleByProgress(selectedArticle, data.articles),
     };
   }, [data.articles, selectedArticle]);
+  const articleStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const article of data.metadata.articles) {
+      counts[article.status] = (counts[article.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [data.metadata.articles]);
+  const stageUiStates = useMemo(
+    () =>
+      RUN_STAGES.map((stage, index) => ({
+        stage,
+        state: getStageUiState(data.run, index),
+        meta: STAGE_META[stage],
+      })),
+    [data.run],
+  );
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const current = data.run.current_stage as RunStage | null;
+    const failedOrCancelled = data.run.status === "failed" || data.run.status === "cancelled";
+    if (!current) return;
+    setExpandedStages((existing) => ({
+      ...existing,
+      [current]: true,
+      ...(failedOrCancelled ? { [current]: true } : {}),
+    }));
+  }, [data.run.current_stage, data.run.status]);
 
   return (
     <div className="space-y-8">
@@ -399,6 +550,214 @@ export function RunDetailClient({ runId, initialData }: Props) {
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Pipeline progress
+        </h2>
+        <div className="rounded-xl border border-zinc-200 bg-white">
+          <ol className="divide-y divide-zinc-100">
+            {stageUiStates.map(({ stage, state, meta }, index) => {
+              const isExpanded =
+                expandedStages[stage] ?? (state === "running" || state === "failed");
+              return (
+                <li key={stage} className="p-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedStages((current) => ({
+                        ...current,
+                        [stage]: !(current[stage] ?? false),
+                      }))
+                    }
+                    className="flex w-full items-start gap-3 text-left"
+                  >
+                    <div className="flex flex-col items-center">
+                      <StageIcon state={state} />
+                      {index < RUN_STAGES.length - 1 ? (
+                        <span className="mt-1 h-8 w-px bg-zinc-200" aria-hidden="true" />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-zinc-900">{meta.label}</p>
+                          <p className="text-xs text-zinc-600">{meta.description}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${stageStateClass(state)}`}
+                          >
+                            {stageStateLabel(state)}
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            {isExpanded ? "Hide details" : "Show details"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="ml-11 mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+                      {stage === "discover_candidates" ? (
+                        <p>
+                          Publishers processed:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.publishers_done}/{data.metadata.publisher_count}
+                          </span>
+                        </p>
+                      ) : null}
+                      {stage === "prefetch_metadata" ? (
+                        <p>
+                          Candidate articles with metadata records:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.articles.length}
+                          </span>
+                        </p>
+                      ) : null}
+                      {stage === "cluster_sources" ? (
+                        <p>
+                          Story clusters created:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.clusters_total}
+                          </span>
+                        </p>
+                      ) : null}
+                      {stage === "select_clusters" ? (
+                        <p>
+                          Eligible clusters:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.clusters_eligible}
+                          </span>
+                          {" · "}Selected clusters:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.clusters_selected}
+                          </span>
+                          {" · "}Selected sources:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.sources_selected}
+                          </span>
+                        </p>
+                      ) : null}
+                      {stage === "extract_bodies" ? (
+                        <div className="space-y-2">
+                          <p>
+                            Extracted:{" "}
+                            <span className="font-semibold text-zinc-900">
+                              {articleStatusCounts.extracted ?? 0}
+                            </span>
+                            {" · "}Skipped existing:{" "}
+                            <span className="font-semibold text-zinc-900">
+                              {articleStatusCounts.skipped_existing ?? 0}
+                            </span>
+                            {" · "}Failed:{" "}
+                            <span className="font-semibold text-zinc-900">
+                              {articleStatusCounts.failed ?? 0}
+                            </span>
+                          </p>
+                          {canRetryExtractions ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setRetryExtractionPending(true);
+                                  setError(null);
+                                  const result = await retryFailedExtractionsAction(runId);
+                                  if (result?.error) {
+                                    throw new Error(result.error);
+                                  }
+                                  const response = await fetch(`/admin/runs/${runId}/data`, {
+                                    method: "GET",
+                                    cache: "no-store",
+                                  });
+                                  if (!response.ok) {
+                                    throw new Error(`Refresh failed (${response.status})`);
+                                  }
+                                  setData((await response.json()) as RunDetailPayload);
+                                } catch (retryError) {
+                                  setError(
+                                    retryError instanceof Error
+                                      ? retryError.message
+                                      : "Unable to retry failed extractions.",
+                                  );
+                                } finally {
+                                  setRetryExtractionPending(false);
+                                }
+                              }}
+                              disabled={retryExtractionPending}
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {retryExtractionPending
+                                ? "Retrying extractions…"
+                                : "Retry missing extractions"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {stage === "upsert_articles" ? (
+                        <p>
+                          Articles upserted:{" "}
+                          <span className="font-semibold text-zinc-900">
+                            {data.metadata.articles_upserted}
+                          </span>
+                        </p>
+                      ) : null}
+                      {stage === "publish_brief" ? (
+                        <div className="space-y-2">
+                          <p className="leading-relaxed">{briefRetryAvailability.headline}</p>
+                          {canRetryBrief ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setRetryBriefPending(true);
+                                  setError(null);
+                                  const result = await retryBriefGenerationAction(runId);
+                                  if (result?.error) {
+                                    throw new Error(result.error);
+                                  }
+                                  const response = await fetch(`/admin/runs/${runId}/data`, {
+                                    method: "GET",
+                                    cache: "no-store",
+                                  });
+                                  if (!response.ok) {
+                                    throw new Error(`Refresh failed (${response.status})`);
+                                  }
+                                  setData((await response.json()) as RunDetailPayload);
+                                } catch (retryError) {
+                                  setError(
+                                    retryError instanceof Error
+                                      ? retryError.message
+                                      : "Unable to retry brief generation.",
+                                  );
+                                } finally {
+                                  setRetryBriefPending(false);
+                                }
+                              }}
+                              disabled={retryBriefPending}
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {retryBriefPending
+                                ? "Publishing brief…"
+                                : "Retry brief generation"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      <section className="space-y-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Detailed data
+        </h2>
+
+        <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Publishers being scraped
         </h2>
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
@@ -573,6 +932,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
             </tbody>
           </table>
         </div>
+      </section>
       </section>
 
       {modalArticle ? (

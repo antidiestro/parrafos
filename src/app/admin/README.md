@@ -8,7 +8,7 @@
 - `page.tsx`: publisher management dashboard.
 - `publisher-actions.ts`: create/update/delete publishers.
 - `runs/page.tsx` and `runs/run-actions.ts`: queue runs and inspect status.
-- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, persisted story-cluster visibility, article drill-down, cancel control, a callout explaining retry availability, and (for failed runs) actions to retry missing source extractions (`retryFailedExtractionsAction`, based on missing body text) and, when eligible, retry brief generation (`retryBriefGenerationAction`) in `runs/run-actions.ts`.
+- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, an expandable stage-stepper (pending/running/completed state iconography), stage-specific detail panels, persisted story-cluster visibility, article drill-down, cancel control, a callout explaining retry availability, and (for failed runs) actions to retry missing source extractions (`retryFailedExtractionsAction`, based on missing body text) and, when eligible, retry brief generation (`retryBriefGenerationAction`) in `runs/run-actions.ts`.
 - `login/*`: login/logout flow and session cookie management hooks.
 
 ## Key Contracts and Invariants
