@@ -2,12 +2,12 @@
 
 ## Purpose
 - Next.js App Router entrypoints (public pages and API routes).
-- Root layout (`layout.tsx`) loads **STIX Two Text** from Google Fonts (`next/font/google`) as the default UI font (Latin + Latin extended subsets).
+- Root layout (`layout.tsx`): site `metadata.title` is **Párrafos.com**; loads **STIX Two Text** from Google Fonts (`next/font/google`) as the default UI font (Latin + Latin extended subsets).
 - Global base styles (`globals.css`): warm muted newsprint-style page background via `:root { --paper: #ebe6dc }` on `html` and `body` (components like source favicon rims can use `var(--paper)` to match).
 - Keep route-level concerns here: rendering, form wiring, server action invocation, and route handler input/output validation.
 
 ## What Lives Here
-- `page.tsx`: public homepage (`/`), reads latest published brief + ordered brief sections and opens with a Spanish greeting framed as **los Párrafos** (product name) plus a time-of-day phrase from the brief timestamp (`de esta tarde`, `de la mañana del D de mes`, etc.) and `actualizados a las HH:MM` (`es` locale).
+- `page.tsx`: public homepage (`/`), reads latest published brief + ordered brief sections; footer area links to Ko-fi (`ko-fi.com/L4L71WRTKN`) with the standard Ko-fi button image via `next/image` (host `storage.ko-fi.com` is allowlisted in root `next.config.ts`). Above the greeting, a separate line shows **Actualizado a las HH:MM** from `created_at` (`es` locale, 24h) in smaller gray sans-serif (`font-sans text-sm text-zinc-500`). The greeting follows, framed as **los Párrafos** (product name) plus a time-of-day phrase from the same timestamp (`de esta tarde`, `de la mañana del D de mes`, etc.). The main column uses generous top/bottom padding; the greeting uses `text-2xl` and brief-section prose uses `text-lg` via `StoryMarkdown`; sections are spaced farther apart in `BriefViewer`.
 - `api/gemini/generate/route.ts`: internal API endpoint for text generation.
 
 ## Key Contracts and Invariants

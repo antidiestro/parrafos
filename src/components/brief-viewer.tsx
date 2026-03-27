@@ -121,7 +121,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
 
   return (
     <>
-      <div className="space-y-10">
+      <div className="space-y-16">
         {bundle.sections.length === 0 ? (
           <p className="text-zinc-600">This brief has no sections yet.</p>
         ) : (

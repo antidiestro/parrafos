@@ -10,7 +10,7 @@
 - `console/orchestrator.ts`: wires stages and run row lifecycle.
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits.
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
-- `stages/compose-brief-sections.ts`: LLM step that emits one markdown section per story; structured output uses a `sections` array.
+- `stages/compose-brief-sections.ts`: LLM step that emits one markdown section per story (~500-character paragraph with a bold lead-in title); structured output uses a `sections` array.
 
 ## Run lifecycle
 - The console workflow inserts a `runs` row with `status = running`, then updates to `completed` or `failed` when the pipeline finishes.
