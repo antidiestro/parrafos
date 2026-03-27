@@ -1,4 +1,5 @@
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
+import { listRunStorySummaries } from "@/lib/runs/persistence/story-summaries-repo";
 import {
   completeRunStage,
   startRunStage,
@@ -16,7 +17,7 @@ export async function runComposeBriefParagraphsStage(input: {
 }): Promise<boolean> {
   const { runId, metadata } = input;
   if (await isRunCancelled(runId)) return false;
-  const storySummaries = metadata.publish?.story_summaries ?? [];
+  const storySummaries = await listRunStorySummaries(runId);
   if (storySummaries.length === 0) {
     throw new Error(
       "Cannot compose brief paragraphs before story summaries are generated.",
@@ -35,7 +36,6 @@ export async function runComposeBriefParagraphsStage(input: {
     await composeBriefParagraphsFromSummaries(storySummaries);
   metadata.publish = {
     ...(metadata.publish ?? {}),
-    story_summaries: storySummaries,
     brief_paragraphs: briefParagraphs,
   };
   await updateRunProgress(runId, { metadata });

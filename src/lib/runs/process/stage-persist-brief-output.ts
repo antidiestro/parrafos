@@ -1,4 +1,5 @@
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
+import { listRunStorySummaries } from "@/lib/runs/persistence/story-summaries-repo";
 import {
   completeRunStage,
   startRunStage,
@@ -13,7 +14,7 @@ export async function runPersistBriefOutputStage(input: {
 }): Promise<boolean> {
   const { runId, metadata } = input;
   if (await isRunCancelled(runId)) return false;
-  const storySummaries = metadata.publish?.story_summaries ?? [];
+  const storySummaries = await listRunStorySummaries(runId);
   const briefParagraphs = metadata.publish?.brief_paragraphs ?? [];
   if (storySummaries.length === 0) {
     throw new Error(

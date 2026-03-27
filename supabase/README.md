@@ -26,6 +26,8 @@
 - Ingestion clustering persistence is stored in:
   - `run_story_clusters` (story-level cluster rows per run),
   - `run_story_cluster_sources` (source assignments per cluster with one-source-per-run uniqueness).
+- Publish story-summary checkpoints are stored in:
+  - `run_story_summaries` (latest summary per run-cluster, ordered by `position`).
 - Run workflow state persistence is split across:
   - `runs` summary/model/stage columns,
   - `run_stage_executions` (per-stage attempts),

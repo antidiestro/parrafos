@@ -329,7 +329,7 @@ export function RunDetailClient({ runId, initialData }: Props) {
     data.run.status === "completed" ||
     data.run.status === "failed" ||
     data.run.status === "cancelled";
-  const storySummaries = data.metadata.publish?.story_summaries ?? [];
+  const storySummaries = data.storySummaries ?? [];
   const briefRetryAvailability = useMemo(
     () => getBriefRetryAvailability(data),
     [data],

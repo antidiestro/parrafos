@@ -17,7 +17,7 @@
 - `process/retry-ops.ts`
   - failed-run retry flows for brief publication and extraction retries.
   - manual publish-stage regeneration for terminal runs:
-    - `regenerateStorySummariesForRun(runId)`: reruns only `generate_story_summaries`, refreshes `metadata.publish.story_summaries`, and clears paragraph checkpoint.
+    - `regenerateStorySummariesForRun(runId)`: reruns only `generate_story_summaries`, refreshes `run_story_summaries`, and clears paragraph checkpoint.
     - `regenerateBriefParagraphsForRun(runId)`: reruns `compose_brief_paragraphs`, then `persist_brief_output`, and marks the run `completed`.
 - `process/context.ts`
   - mutable in-memory workflow context for a single `processRun()` execution.
@@ -47,6 +47,7 @@
 - `persistence/progress-repo.ts`: persists normalized progress rows and run summary counters (`run_publishers_progress`, `run_articles_progress`, `run_errors`).
 - `persistence/stages-repo.ts`: stage attempt bookkeeping in `run_stage_executions` with heartbeat and status transitions.
 - `persistence/events-repo.ts`: append-only operational timeline in `run_events`.
+- `persistence/story-summaries-repo.ts`: publish-stage checkpoint persistence in `run_story_summaries`.
 - `workflow.ts`: canonical stage IDs used by runtime and persistence.
 
 ## Worker Logging (Observability)
@@ -82,8 +83,8 @@
 - Stage attempts are persisted as explicit `run_stage_executions` rows so stage progress/retries can be inspected independently of JSON snapshots.
 - The worker checks for cancellation throughout processing and exits early without forcing `completed`/`failed` when a run is cancelled.
 - Publish stage checkpoints are persisted in `runs.metadata.publish`:
-  - `story_summaries`
   - `brief_paragraphs`
+- Story-summary checkpoints are persisted in `run_story_summaries` (latest per run-cluster, ordered by `position`).
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
@@ -121,12 +122,12 @@
   6. run body-text extraction sequentially (one source at a time) to avoid bursty model traffic, while reusing prefetched HTML when available,
   7. commit article upserts sequentially in input order.
 - After extracting selected sources, publish work runs in three explicit stages:
-  - `generate_story_summaries`: generates one extended summary per selected cluster and checkpoints in `metadata.publish.story_summaries`.
+  - `generate_story_summaries`: generates one extended summary per selected cluster and checkpoints in `run_story_summaries`.
   - `compose_brief_paragraphs`: generates one coherent paragraph per checkpointed summary and checkpoints in `metadata.publish.brief_paragraphs`.
   - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
 - Story summaries and brief paragraphs are generated in Spanish only.
 - Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing.
-- Story summaries use an Axios-like sectioned Markdown format with a short opening paragraph followed by 4-6 bold section labels; each section must contain at least 2 bullet points, and inline source links must be embedded naturally inside those bullets using selected-cluster source URLs only.
+- Story summaries are generated as Spanish Markdown with a clear journalistic structure and can mix short sections and bullets; strict section-count/bullet-count validation is not enforced, but summaries must remain source-grounded and only use selected-cluster source URLs when adding links.
 - Publish-stage text normalizes common HTML/numeric entities back into UTF-8 characters before persistence (helps preserve Spanish accents/diacritics).
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
 - Manual regenerate controls are terminal-run only (`failed`, `completed`, `cancelled`) to avoid racing active worker execution:

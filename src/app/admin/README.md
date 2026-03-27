@@ -8,7 +8,7 @@
 - `page.tsx`: publisher management dashboard.
 - `publisher-actions.ts`: create/update/delete publishers.
 - `runs/page.tsx` and `runs/run-actions.ts`: queue runs and inspect status.
-- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, an expandable stage-stepper (pending/running/completed state iconography), stage-specific detail panels, persisted story-cluster visibility, story-summary checkpoint viewer (`metadata.publish.story_summaries`), article drill-down, cancel control, a callout explaining retry availability, and manual terminal-run publish controls in `runs/run-actions.ts` for regenerating story summaries only (`regenerateStorySummariesAction`) and regenerating/persisting brief paragraphs (`regenerateBriefParagraphsAction`), alongside failed-run retries (`retryFailedExtractionsAction`, `retryBriefGenerationAction`).
+- `runs/[runId]/page.tsx`, `runs/[runId]/data/route.ts`, and `runs/[runId]/cancel/route.ts`: run detail view with polling-backed live progress, an expandable stage-stepper (pending/running/completed state iconography), stage-specific detail panels, persisted story-cluster visibility, story-summary checkpoint viewer (`run_story_summaries`), article drill-down, cancel control, a callout explaining retry availability, and manual terminal-run publish controls in `runs/run-actions.ts` for regenerating story summaries only (`regenerateStorySummariesAction`) and regenerating/persisting brief paragraphs (`regenerateBriefParagraphsAction`), alongside failed-run retries (`retryFailedExtractionsAction`, `retryBriefGenerationAction`).
 - `login/*`: login/logout flow and session cookie management hooks.
 
 ## Key Contracts and Invariants

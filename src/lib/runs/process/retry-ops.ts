@@ -5,6 +5,7 @@ import {
   getBriefRetryAvailability,
 } from "@/lib/runs/brief-retry";
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
+import { listRunStorySummaries } from "@/lib/runs/persistence/story-summaries-repo";
 import {
   completeRunStage,
   startRunStage,
@@ -50,7 +51,7 @@ async function retryPublishStagesFromCurrentFailure(input: {
   const startStage = asPublishStage(currentStage) ?? "generate_story_summaries";
 
   if (startStage !== "generate_story_summaries") {
-    const summaries = metadata.publish?.story_summaries ?? [];
+    const summaries = await listRunStorySummaries(runId);
     if (summaries.length === 0) {
       throw new Error(
         "Cannot retry publish from compose/persist stage because story summary checkpoint is missing.",
@@ -137,7 +138,7 @@ export async function regenerateBriefParagraphsForRun(
   if (!payload) throw new Error("Run not found");
   assertManualPublishRegenerationAllowed(payload.run.status);
 
-  const storySummaries = payload.metadata.publish?.story_summaries ?? [];
+  const storySummaries = await listRunStorySummaries(runId);
   if (storySummaries.length === 0) {
     throw new Error(
       "Cannot regenerate brief paragraphs before story summaries are generated.",

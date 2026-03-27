@@ -36,12 +36,19 @@ export type RunDetailPayload = {
   metadata: ReturnType<typeof parseRunMetadata>;
   articles: RunArticleWithPublisher[];
   clusters: RunStoryClusterWithSources[];
+  storySummaries: RunStorySummaryCheckpoint[];
   /**
    * Keys `${publisher_id}::${canonical_url}` where `articles.body_text` is
    * non-empty, for sources in selected clusters — same lookup scope as brief
    * generation (any run), not only `articles.run_id = this run`.
    */
   briefArticleBodyKeys: string[];
+};
+
+export type RunStorySummaryCheckpoint = {
+  cluster_id: string;
+  title: string;
+  detail_markdown: string;
 };
 
 export type RunStoryClusterSourceWithPublisher = Pick<
@@ -183,6 +190,7 @@ export async function getRunDetailPayload(
   if (!run) return null;
   const articles = await listRunArticles(runId);
   const clusters = await listRunStoryClusters(runId);
+  const storySummaries = await listRunStorySummaries(runId);
   const [publisherProgress, articleProgress, runErrors] = await Promise.all([
     listRunPublishersProgress(runId),
     listRunArticlesProgress(runId),
@@ -211,6 +219,7 @@ export async function getRunDetailPayload(
     }),
     articles,
     clusters,
+    storySummaries,
     briefArticleBodyKeys,
   };
 }
@@ -342,6 +351,23 @@ async function listRunPublishersProgress(
     articles_found: row.articles_found,
     articles_upserted: row.articles_upserted,
     error_message: row.error_message,
+  }));
+}
+
+async function listRunStorySummaries(
+  runId: string,
+): Promise<RunStorySummaryCheckpoint[]> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("run_story_summaries")
+    .select("cluster_id,title,detail_markdown")
+    .eq("run_id", runId)
+    .order("position", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    cluster_id: row.cluster_id,
+    title: row.title,
+    detail_markdown: row.detail_markdown,
   }));
 }
 
