@@ -26,4 +26,4 @@
 - `npx tsc --noEmit`
 - Run the relevant flow:
   - web: `npm run dev`
-  - worker: `npm run worker:runs -- --once`
+  - workflow console: `npm run workflow:console`

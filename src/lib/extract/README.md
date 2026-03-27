@@ -24,9 +24,9 @@
   - extracts `description` from JSON-LD (`description`/`abstract`) or from meta tags (`og:description`, `twitter:description`, `description`) when available,
   - normalizes `publishedAt` to ISO; when source date strings omit timezone, it applies fallback timezone `RUN_PUBLISHED_AT_FALLBACK_TIMEZONE` (default: `America/Santiago`),
   - returns `null` when neither source provides required metadata contract.
-- Run orchestration (`src/lib/runs/process.ts`) uses metadata extraction as an early gate: all identified candidates are metadata-validated before clustering/relevance selection.
+- Workflow console orchestration (`src/scripts/workflow-console/stages/prefetch-metadata.ts`) uses metadata extraction as an early gate: all identified candidates are metadata-validated before clustering/relevance selection.
 - `cleanTextForLLM` returns bounded plain text for body-text extraction prompts.
-- Retry behavior can be overridden by callers. Run orchestration (`src/lib/runs/process.ts`) explicitly sets `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
+- Retry behavior can be overridden by callers. Workflow console stages currently set `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
 
 ## Worker Logging (Observability)
 - `fetchHtmlWithRetries` logs each attempt, failures, and the final status/url (without dumping full HTML).
@@ -37,7 +37,7 @@
 - Improving model input quality: adjust cleanup selectors and max characters in `html.ts`.
 
 ## Verification
-- Run a single worker job against known publishers.
+- Run `npm run workflow:console` against known publishers.
 - Confirm extraction still succeeds for typical homepage/article pages.
 - `npm run lint`
 

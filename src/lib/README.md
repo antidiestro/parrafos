@@ -6,7 +6,6 @@
 
 ## Module Map
 - `data/`: query helpers for briefs, publishers, runs.
-- `auth/`: admin session token and server-side enforcement.
 - `runs/`: orchestration of extraction runs.
 - `extract/`: network fetch + HTML cleanup for extraction.
 - `supabase/`: typed client factories and env accessors.
@@ -22,7 +21,7 @@
 - Add integration settings: update `lib/supabase` or `lib/gemini` env/client modules.
 
 ## Verification
-- Run focused scenario (admin route, worker, or homepage depending on change).
+- Run focused scenario (homepage route or workflow console depending on change).
 - `npm run lint`
 - `npx tsc --noEmit`
 

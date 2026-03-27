@@ -4,27 +4,23 @@
 - Operational Node entrypoints run outside request/response lifecycle.
 
 ## Key Files
-- `run-worker.ts`: claims queued runs and executes extraction pipeline continuously or once.
 - `run-workflow-console.ts`: lightweight console entrypoint for standalone brief workflow execution.
 - `workflow-console/*`: split console workflow modules (types, schemas/constants, logging, utils, stage implementations, orchestrator).
 - `evaluate-clustering.ts`: offline baseline-vs-precision clustering evaluator for multilingual candidate sets.
 
-## Worker Behavior
-- `npm run worker:runs`: infinite polling loop (2s sleep when queue is empty).
-- `npm run worker:runs:watch`: same worker loop, auto-restarts when relevant source files change.
-- `npm run worker:runs -- --once`: claim and process at most one pending run, then exit.
-- Delegates actual run logic to `src/lib/runs/process.ts`.
-- During processing, run stage attempts are persisted in `run_stage_executions` and mirrored into `runs.current_stage`/`runs.stage_attempt`.
-- `npm run workflow:console`: executes a separate direct workflow pipeline from publisher crawl through brief publication without creating/updating run-progress rows; stage progress is printed directly to stdout.
+## Workflow Console Behavior
+- `npm run workflow:console`: executes the direct workflow pipeline from publisher crawl through brief publication.
+- The pipeline is orchestrated in `workflow-console/index.ts` and split into explicit stage modules under `workflow-console/stages/`.
+- Stage progress and diagnostics are emitted to stdout using the local logging helpers.
+- The run-record stage persists a `runs` row lifecycle used for observability (`running` -> `completed`/`failed`).
 
 ## Logging
-- Worker-level logs are emitted via `console.log` with the prefix `[worker:runs]`.
-- During `processRun`, logs include stage transitions (publisher crawl, clustering, extraction, upserts, brief publishing) plus per-article outcomes (queued/skipped, fetched+parsed, upserted/failed).
+- Console workflow logs are emitted to stdout with stage dividers and structured metadata payloads.
+- Logs include stage transitions and per-item outcomes (discovered/skipped, fetched+parsed, upserted/failed).
 
 ## Common Changes
-- Polling cadence/runtime behavior: update `run-worker.ts`.
 - Console workflow behavior/logging: update `run-workflow-console.ts`.
-- Extraction semantics: change `src/lib/runs` instead of this script.
+- Extraction semantics: change `workflow-console/stages/*` and shared helpers in `src/lib/*`.
 - Clustering quality evaluation workflow: update `evaluate-clustering.ts`.
 
 ## Clustering Evaluation Harness
@@ -43,10 +39,10 @@
   - assigned coverage.
 
 ## Verification
-- Queue one run in admin, then execute `--once`.
+- Execute `npm run workflow:console` with a valid `.env`.
 - Confirm process exits cleanly and run status transitions in DB.
-- Confirm normalized progress tables are updated while run is active (`run_publishers_progress`, `run_articles_progress`, `run_errors`, `run_events`).
+- Confirm expected publish outputs are persisted (`briefs`, `stories`, `brief_paragraphs`, `story_articles`).
 
 ## Gotchas
 - This script assumes `.env` is loaded by package script (`dotenv -e .env -- ...`).
-- If worker is not running, queued runs remain `pending`.
+- The workflow console performs live network and model calls; use with production-safe keys/config.

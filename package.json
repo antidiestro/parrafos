@@ -7,12 +7,10 @@
     "update-types": "dotenv -e .env -- sh -c 'npx supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" --schema public > src/database.types.ts'",
     "update-types:local": "npx supabase gen types typescript --local --schema public > src/database.types.ts",
     "dev": "next dev",
-    "dev:all": "concurrently -k -n web,worker -c blue,magenta \"npm:dev\" \"npm:worker:runs:watch\"",
+    "dev:all": "npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "worker:runs": "dotenv -e .env -- tsx src/scripts/run-worker.ts",
-    "worker:runs:watch": "dotenv -e .env -- tsx watch src/scripts/run-worker.ts",
     "workflow:console": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
   },

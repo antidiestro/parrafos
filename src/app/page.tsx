@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { BriefViewer } from "@/components/brief-viewer";
 import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
 
@@ -51,11 +50,6 @@ export default async function HomePage() {
         </article>
       )}
 
-      <footer className="mt-16 border-t border-zinc-100 pt-8 text-center text-sm text-zinc-400">
-        <Link href="/admin" className="hover:text-zinc-600">
-          Admin
-        </Link>
-      </footer>
     </main>
   );
 }

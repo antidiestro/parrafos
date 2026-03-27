@@ -9,13 +9,11 @@
   - `src/lib/runs/README.md`
   - `src/lib/extract/README.md`
   - `src/lib/data/README.md`
-  - `src/lib/auth/README.md`
   - `src/lib/supabase/README.md`
   - `src/lib/gemini/README.md`
 
 ## Where to Implement Changes
 - Data reads: `src/lib/data/*`
-- Admin auth/session: `src/lib/auth/*`
 - Extraction orchestration: `src/lib/runs/*`
 - Fetch/sanitization mechanics: `src/lib/extract/*`
 - External integrations/env wrappers: `src/lib/supabase/*`, `src/lib/gemini/*`
@@ -31,4 +29,4 @@
 ## Validation
 - `npm run lint`
 - `npx tsc --noEmit`
-- Run targeted execution path (homepage/admin/worker) based on modified module.
+- Run targeted execution path (homepage/workflow console) based on modified module.

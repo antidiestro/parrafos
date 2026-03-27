@@ -2,11 +2,11 @@
 
 TypeScript library code and **Supabase** migrations for Parrafos: editorial **briefs** and **stories**, plus an extraction pipeline (**publishers**, **runs**, **articles**) with row-level security.
 
-A **Next.js** app in `src/app` reads the database with **server-only** Supabase (`SUPABASE_SERVICE_ROLE_KEY`); the public homepage shows the latest published brief, and **/admin** (guarded by `ADMIN_PASSWORD` + `ADMIN_SESSION_SECRET` in `.env`) manages publishers.
+A **Next.js** app in `src/app` reads the database with **server-only** Supabase (`SUPABASE_SERVICE_ROLE_KEY`); the public homepage shows the latest published brief.
 
 This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
 
-The `/admin/runs` page only **queues** runs. A worker process must be running to execute queued runs.
+Run generation now happens through the standalone console workflow (`npm run workflow:console`).
 
 > **Caution:** `supabase db push` applies migrations to the linked remote database. There is no local copy of the schema unless you add a separate staging project or use branches. Take backups or test risky changes on another project first.
 
@@ -24,13 +24,13 @@ The `/admin/runs` page only **queues** runs. A worker process must be running to
 npm install
 ```
 
-Run the web app locally (after `.env` is filled, including admin vars):
+Run the web app locally (after `.env` is filled):
 
 ```bash
 npm run dev
 ```
 
-Run web app + runs worker together in development (worker restarts on code changes):
+`dev:all` aliases the regular dev server:
 
 ```bash
 npm run dev:all
@@ -104,24 +104,12 @@ npm run update-types
 
 Output: `src/database.types.ts`. Use with `createClient<Database>(...)`.
 
-## Runs worker
+## Run workflow console
 
-Queue runs in `/admin/runs`, then execute them with:
-
-```bash
-npm run worker:runs
-```
-
-Auto-restart worker when files change:
+Execute the full workflow (discover, cluster, extract, summarize, publish) from the CLI:
 
 ```bash
-npm run worker:runs:watch
-```
-
-Run a single queued job and exit:
-
-```bash
-npm run worker:runs -- --once
+npm run workflow:console
 ```
 
 ## Using the Supabase clients
@@ -138,7 +126,7 @@ import {
 const anon = createSupabaseAnonClientFromEnv()
 
 // Extraction workers — only in trusted server code
-const admin = createSupabaseServiceClientFromEnv()
+const service = createSupabaseServiceClientFromEnv()
 ```
 
 In **browser** or frameworks that inject public env vars, pass the URL and anon key explicitly:
@@ -157,16 +145,14 @@ This is a lightweight map of where most changes should go:
 
 | Path | What it is |
 | ---- | ---------- |
-| `src/app/` | Next.js routes and handlers (public homepage, admin pages, API routes) |
-| `src/app/admin/` | Admin UI + server actions for publisher CRUD and run queueing |
-| `src/lib/` | Shared server-side domain logic (data access, auth, runs, extract, integrations) |
-| `src/lib/data/` | Query helpers used by pages/admin (`briefs`, `publishers`, `runs`) |
-| `src/lib/auth/` | Admin session token creation/verification and server guard helpers |
-| `src/lib/runs/` | Run orchestration pipeline (claim pending run, process publishers/articles) |
+| `src/app/` | Next.js routes and handlers (public homepage and API routes) |
+| `src/lib/` | Shared server-side domain logic (data access, runs, extract, integrations) |
+| `src/lib/data/` | Query helpers used by pages and workflow observability (`briefs`, `publishers`, `runs`) |
+| `src/lib/runs/` | Shared run constants/progress/persistence contracts used by workflow console |
 | `src/lib/extract/` | HTTP fetch/retry/size guards and HTML cleaning for model input |
 | `src/lib/gemini/` | Gemini client/env wrappers and text/JSON generation helpers |
 | `src/lib/supabase/` | Typed Supabase client/env helpers (anon + service role) |
-| `src/scripts/` | Operational scripts (currently the runs worker entrypoint) |
+| `src/scripts/` | Operational scripts (`workflow-console` entrypoint and stages) |
 | `src/database.types.ts` | Generated `Database` type for PostgREST |
 | `supabase/migrations/` | SQL migrations (schema + RLS), applied with `npm run db:push` |
 | `supabase/seed.sql` | Used only if you run a **local** `supabase db reset` (optional) |
