@@ -49,7 +49,10 @@ async function loadExistingArticleMetadataByCandidate(
     if (publisherSet) {
       publisherSet.add(canonicalUrl);
     } else {
-      canonicalUrlsByPublisher.set(article.publisher_id, new Set([canonicalUrl]));
+      canonicalUrlsByPublisher.set(
+        article.publisher_id,
+        new Set([canonicalUrl]),
+      );
     }
   }
 
@@ -122,7 +125,7 @@ async function mapWithConcurrency<T, R>(
         settled = true;
         resolve(results);
         return;
-    }
+      }
 
       while (active < maxGlobalConcurrency) {
         let selectedKey: string | null = null;
@@ -145,7 +148,10 @@ async function mapWithConcurrency<T, R>(
         }
 
         active += 1;
-        inFlightByKey.set(selectedKey, (inFlightByKey.get(selectedKey) ?? 0) + 1);
+        inFlightByKey.set(
+          selectedKey,
+          (inFlightByKey.get(selectedKey) ?? 0) + 1,
+        );
 
         void mapper(items[nextIndex], nextIndex)
           .then((value) => {

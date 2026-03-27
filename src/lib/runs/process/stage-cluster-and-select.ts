@@ -342,7 +342,9 @@ async function persistClusters(
       .select("id,title,summary,status,source_count")
       .single();
     if (clusterError || !insertedCluster) {
-      throw new Error(clusterError?.message ?? "Unable to persist story cluster");
+      throw new Error(
+        clusterError?.message ?? "Unable to persist story cluster",
+      );
     }
 
     const sources = story.sourceKeys
@@ -441,6 +443,8 @@ async function selectRelevantStories(
       `Prioritize clusters with concrete updates in the last ${RUN_RECENCY_WINDOW_SHORT_HOURS}-${RUN_RECENCY_WINDOW_MEDIUM_HOURS} hours.`,
       "Prefer newest developments over stale recap.",
       "Deprioritize repetitive, low-consequence, or evergreen items when stronger updates exist.",
+      "Ignore routine day-to-day crime coverage unless it has extraordinary national or institutional impact.",
+      "Sports stories are only acceptable when they are clearly history-making (for example, landmark championship wins, unprecedented records, or major structural milestones).",
       "For each selected cluster, return a short selection_reason and latest_development sentence.",
       "Stories:",
       JSON.stringify(input),
@@ -511,7 +515,9 @@ export async function runClusterAndSelectStages(
   await updateRunProgress(runId, { metadata });
 
   const identifiedCandidateKeys = new Set(
-    identifiedCandidates.map((candidate) => `${candidate.publisherId}::${candidate.url}`),
+    identifiedCandidates.map(
+      (candidate) => `${candidate.publisherId}::${candidate.url}`,
+    ),
   );
   for (const article of metadata.articles) {
     if (
@@ -539,7 +545,8 @@ export async function runClusterAndSelectStages(
     message: "Cluster sources stage started",
   });
   await clearPersistedRunClusters(runId);
-  const clusteredStories = await clusterCandidatesIntoStories(identifiedCandidates);
+  const clusteredStories =
+    await clusterCandidatesIntoStories(identifiedCandidates);
   const persistedClusters = await persistClusters(
     runId,
     clusteredStories,
@@ -557,7 +564,8 @@ export async function runClusterAndSelectStages(
   for (const candidate of identifiedCandidates) {
     const progress = metadata.articles.find(
       (entry) =>
-        entry.publisher_id === candidate.publisherId && entry.url === candidate.url,
+        entry.publisher_id === candidate.publisherId &&
+        entry.url === candidate.url,
     );
     if (progress) {
       progress.status = sourceKeysInClusters.has(
@@ -568,7 +576,10 @@ export async function runClusterAndSelectStages(
     }
   }
 
-  context.clustersWithEligibility = await markEligibleClusters(runId, persistedClusters);
+  context.clustersWithEligibility = await markEligibleClusters(
+    runId,
+    persistedClusters,
+  );
   const eligibleClusters = context.clustersWithEligibility.filter(
     (cluster) => cluster.status === "eligible",
   );
@@ -597,12 +608,14 @@ export async function runClusterAndSelectStages(
     eligibleClusters,
     context.selectionDecisions,
   );
-  metadata.clusters_selected = context.selectionDecisions.selectedClusterIds.size;
+  metadata.clusters_selected =
+    context.selectionDecisions.selectedClusterIds.size;
 
   context.selectedCandidates = [];
   const selectedSourceKeys = new Set<string>();
   for (const cluster of context.clustersWithEligibility) {
-    if (!context.selectionDecisions.selectedClusterIds.has(cluster.id)) continue;
+    if (!context.selectionDecisions.selectedClusterIds.has(cluster.id))
+      continue;
     for (const key of cluster.sourceKeys) {
       selectedSourceKeys.add(key);
       const source = context.sourceByKey.get(key);
@@ -614,7 +627,8 @@ export async function runClusterAndSelectStages(
   for (const candidate of identifiedCandidates) {
     const progress = metadata.articles.find(
       (entry) =>
-        entry.publisher_id === candidate.publisherId && entry.url === candidate.url,
+        entry.publisher_id === candidate.publisherId &&
+        entry.url === candidate.url,
     );
     if (progress) {
       progress.status = selectedSourceKeys.has(

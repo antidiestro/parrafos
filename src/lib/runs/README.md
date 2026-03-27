@@ -98,6 +98,7 @@
 - Cluster persistence uses a compact model contract (`title` + `source_keys`) and applies cross-publisher minimum support in code before persistence.
 - Persisted clusters with fewer than 3 sources are discarded before relevance selection.
 - Relevant-story selection asks for 6 clusters when at least 6 are eligible (otherwise all eligible clusters), and now scores clusters with an explicit recency/impact rubric (latest timestamps, source activity in the last 6h/24h, and deterministic article-description metadata from JSON-LD/meta).
+- Relevant-story selection explicitly ignores routine day-to-day crime unless impact is extraordinary, and only allows sports when the event is clearly history-making.
 - Selected clusters persist `selection_reason` so the writing step has explicit context for why the story is in the brief.
 - Sources from selected stories that already exist in `articles` are skipped and not re-extracted.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
@@ -117,6 +118,9 @@
   - `generate_story_summaries`: generates one extended summary per selected cluster and checkpoints in `metadata.publish.story_summaries`.
   - `compose_brief_paragraphs`: generates one coherent paragraph per checkpointed summary and checkpoints in `metadata.publish.brief_paragraphs`.
   - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
+- Story summaries and brief paragraphs are generated in Spanish only.
+- Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing.
+- Story summaries use four sections (`Punto clave`, `Contexto`, `Detalles`, `Implicaciones`) and intentionally omit inline citations and source-list sections.
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
 - `discover_candidates` processes publishers in parallel (one concurrent task per configured publisher host) so homepage fetch and deterministic candidate discovery run simultaneously across sites.
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; prefetch scheduling is host-aware (global cap + per-host isolation, currently 1 in-flight request per host) to prevent single-host contention from dominating the worker pool; body-text extraction calls are intentionally sequential.

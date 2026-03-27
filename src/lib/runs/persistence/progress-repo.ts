@@ -48,10 +48,9 @@ export async function persistRunProgressSnapshot(
     error_message: publisher.error_message,
   }));
   if (publisherRows.length > 0) {
-    const { error } = await supabase.from("run_publishers_progress").upsert(
-      publisherRows,
-      { onConflict: "run_id,publisher_id" },
-    );
+    const { error } = await supabase
+      .from("run_publishers_progress")
+      .upsert(publisherRows, { onConflict: "run_id,publisher_id" });
     if (error) throw new Error(error.message);
   }
 
@@ -66,10 +65,9 @@ export async function persistRunProgressSnapshot(
     error_message: article.error_message,
   }));
   if (articleRows.length > 0) {
-    const { error } = await supabase.from("run_articles_progress").upsert(
-      articleRows,
-      { onConflict: "run_id,publisher_id,url" },
-    );
+    const { error } = await supabase
+      .from("run_articles_progress")
+      .upsert(articleRows, { onConflict: "run_id,publisher_id,url" });
     if (error) throw new Error(error.message);
   }
 

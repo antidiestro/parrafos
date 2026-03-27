@@ -45,7 +45,9 @@ export async function runDiscoverCandidatesStage(
   const { runId, metadata } = context;
   let progressWrite = Promise.resolve();
   async function persistProgress(): Promise<void> {
-    const write = progressWrite.then(() => updateRunProgress(runId, { metadata }));
+    const write = progressWrite.then(() =>
+      updateRunProgress(runId, { metadata }),
+    );
     progressWrite = write.catch(() => undefined);
     await write;
   }
@@ -64,7 +66,10 @@ export async function runDiscoverCandidatesStage(
   await persistProgress();
   if (await isRunCancelled(runId)) return;
 
-  const discoverStageAttempt = await startRunStage(runId, "discover_candidates");
+  const discoverStageAttempt = await startRunStage(
+    runId,
+    "discover_candidates",
+  );
   await appendRunEvent({
     runId,
     stage: "discover_candidates",
@@ -88,7 +93,9 @@ export async function runDiscoverCandidatesStage(
           await persistProgress();
         }
 
-        const home = await fetchHtmlWithRetries(publisher.base_url, { retries: 0 });
+        const home = await fetchHtmlWithRetries(publisher.base_url, {
+          retries: 0,
+        });
         const candidates = extractArticleCandidatesFromHomepage(
           publisher.base_url,
           home.html,

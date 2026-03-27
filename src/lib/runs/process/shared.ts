@@ -1,5 +1,5 @@
-import type { Json } from "@/database.types";
 import { z } from "zod";
+import type { Json } from "@/database.types";
 import { cleanTextForLLM } from "@/lib/extract/html";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import {

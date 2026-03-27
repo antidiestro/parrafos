@@ -87,12 +87,6 @@ function replaceNewlinesWithSpaces(value: string) {
     .trim();
 }
 
-function ensureStartsWithIntroBold(markdown: string): string {
-  const trimmed = markdown.trim();
-  if (/^\*\*.+?\*\*/.test(trimmed)) return trimmed;
-  return `**Top update:** ${trimmed}`;
-}
-
 function toHoursAgo(iso: string | null, nowMs: number): number | null {
   if (!iso) return null;
   const ts = +new Date(iso);
@@ -140,7 +134,8 @@ export async function loadSelectedClustersAndSources(runId: string): Promise<{
   }
 
   const sortedClusters = selectedClusters.slice().sort((a, b) => {
-    if (b.source_count !== a.source_count) return b.source_count - a.source_count;
+    if (b.source_count !== a.source_count)
+      return b.source_count - a.source_count;
     const aMax = maxPublishedAtByCluster.get(a.id) ?? null;
     const bMax = maxPublishedAtByCluster.get(b.id) ?? null;
     if (aMax && bMax) return +new Date(bMax) - +new Date(aMax);
@@ -188,7 +183,8 @@ async function loadArticleBodiesBySource(
 export async function generateStorySummariesForRun(
   runId: string,
 ): Promise<StorySummarySchemaRow[]> {
-  const { sortedClusters, sources } = await loadSelectedClustersAndSources(runId);
+  const { sortedClusters, sources } =
+    await loadSelectedClustersAndSources(runId);
   const articleByKey = await loadArticleBodiesBySource(sources);
   const nowMs = Date.now();
   const summaries: StorySummarySchemaRow[] = [];
@@ -211,16 +207,10 @@ export async function generateStorySummariesForRun(
     const latestHoursAgo = toHoursAgo(latestClusterSourceTime ?? null, nowMs);
 
     const sourceTexts: string[] = [];
-    const sourceReferenceLines: string[] = [];
     for (const source of clusterSources) {
       const key = `${source.publisher_id}::${source.canonical_url}`;
       const article = articleByKey.get(key);
       if (!article) continue;
-      sourceReferenceLines.push(
-        [`S${sourceReferenceLines.length + 1}`, source.title ?? article.title ?? "Untitled", source.url].join(
-          " | ",
-        ),
-      );
       sourceTexts.push(
         [
           `Source URL: ${source.url}`,
@@ -243,40 +233,43 @@ export async function generateStorySummariesForRun(
       );
     }
     if (sourceTexts.length === 0) {
-      throw new Error(`No extracted article text available for cluster ${cluster.id}`);
+      throw new Error(
+        `No extracted article text available for cluster ${cluster.id}`,
+      );
     }
 
     const prompt = [
-      "You write an in-depth story summary in Markdown with Axios-like structure.",
-      "Instructions:",
-      "1) Use exactly these sections in this order: ## Key point, ## Context, ## Details, ## Implications, ## Sources.",
-      "2) For each of the first four sections, write 1 concise paragraph.",
-      "3) Keep citations simple: add short inline markers like [S1], [S2] only when needed.",
-      "4) End each of the first four sections with a short line `Sources: [Sx], [Sy]`.",
-      "5) In ## Sources, include a bulleted list with one item per source in the format `[Sx] Title - URL`.",
-      "6) Do not invent claims; only use provided sources.",
-      `Story title / topic: ${cluster.title}`,
+      "Escribe un resumen en profundidad en Markdown con estructura periodistica clara.",
+      "Instrucciones:",
+      "1) Escribe TODO en espanol.",
+      "2) Usa exactamente estas secciones y en este orden: ## Punto clave, ## Contexto, ## Detalles, ## Implicaciones.",
+      "3) En cada seccion, escribe 1 parrafo conciso.",
+      "4) No incluyas citas en linea ni lista de fuentes.",
+      "5) No inventes afirmaciones; usa solo las fuentes provistas.",
+      "6) Manten un tono esceptico y equilibrado: reconoce que las fuentes pueden tener sesgos y que las versiones oficiales pueden responder a agendas.",
+      "7) Ese escepticismo debe ser prudente y basado en evidencia, nunca conspirativo.",
+      `Titulo/tema de la historia: ${cluster.title}`,
       cluster.selection_reason
-        ? `Why this story was selected: ${cluster.selection_reason}`
+        ? `Motivo de seleccion de la historia: ${cluster.selection_reason}`
         : null,
       latestClusterSourceTime
-        ? `Most recent source timestamp: ${new Date(latestClusterSourceTime).toISOString()}`
+        ? `Marca temporal de la fuente mas reciente: ${new Date(latestClusterSourceTime).toISOString()}`
         : null,
       latestHoursAgo !== null
-        ? `Most recent source is approximately ${latestHoursAgo} hours old.`
+        ? `La fuente mas reciente tiene aproximadamente ${latestHoursAgo} horas.`
         : null,
-      "Source reference keys for citations:",
-      sourceReferenceLines.map((line) => `- ${line}`).join("\n"),
-      "Relevant sources (full texts), each delimited by ---:",
+      "Fuentes relevantes (textos completos), cada una delimitada por ---:",
       sourceTexts.map((text) => `---\n${text}\n---`).join("\n"),
-      "Write the detailed summary now.",
+      "Escribe ahora el resumen detallado.",
     ]
       .filter(Boolean)
       .join("\n");
 
     const generated = await generateGeminiJson(prompt, storyDetailSchema, {
       model: RUN_BRIEF_MODEL,
-      nativeStructuredOutput: { responseJsonSchema: storyDetailResponseJsonSchema },
+      nativeStructuredOutput: {
+        responseJsonSchema: storyDetailResponseJsonSchema,
+      },
     });
 
     summaries.push({
@@ -308,24 +301,31 @@ export async function composeBriefParagraphsFromSummaries(
     .join("\n\n---\n\n");
 
   const prompt = [
-    "You are composing a final multi-story news brief from detailed story summaries.",
-    "Output must include exactly one markdown paragraph per story, in the same order.",
-    "Each paragraph should be medium length (5-6 sentences).",
-    "No headings, no bullet lists, no inline citations.",
-    "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's claims.",
-    "Do not merge stories or move facts across story boundaries.",
-    `Number of stories: ${storySummaries.length}`,
-    "Story summaries (ordered):",
+    "Estas componiendo un brief final de varias noticias a partir de resumenes detallados.",
+    "Escribe TODO en espanol.",
+    "La salida debe incluir exactamente un parrafo markdown por historia, en el mismo orden.",
+    "Cada parrafo debe tener longitud media (5-6 oraciones).",
+    "Sin encabezados, sin listas, sin citas en linea.",
+    "Usa una reescritura equilibrada: mejora coherencia y reduce repeticion preservando los hechos de cada historia.",
+    "Manten un tono esceptico y equilibrado: reconoce posibles sesgos en fuentes y posibles agendas en versiones oficiales.",
+    "Ese tono debe ser prudente y basado en evidencia, no conspirativo.",
+    "No mezcles historias ni traslades hechos entre historias.",
+    `Numero de historias: ${storySummaries.length}`,
+    "Resumenes de historias (ordenados):",
     summaryBlocks,
-    "Return JSON with {\"paragraphs\":[{\"markdown\":\"...\"}, ...]}",
+    'Return JSON with {"paragraphs":[{"markdown":"..."}, ...]}',
   ].join("\n");
 
-  const generated = await generateGeminiJson(prompt, finalBriefParagraphsSchema, {
-    model: RUN_BRIEF_MODEL,
-    nativeStructuredOutput: {
-      responseJsonSchema: finalBriefParagraphsResponseJsonSchema,
+  const generated = await generateGeminiJson(
+    prompt,
+    finalBriefParagraphsSchema,
+    {
+      model: RUN_BRIEF_MODEL,
+      nativeStructuredOutput: {
+        responseJsonSchema: finalBriefParagraphsResponseJsonSchema,
+      },
     },
-  });
+  );
 
   if (generated.paragraphs.length !== storySummaries.length) {
     throw new Error(
@@ -335,9 +335,7 @@ export async function composeBriefParagraphsFromSummaries(
 
   return generated.paragraphs.map((paragraph, idx) => ({
     cluster_id: storySummaries[idx].cluster_id,
-    markdown: ensureStartsWithIntroBold(
-      replaceNewlinesWithSpaces(paragraph.markdown),
-    ),
+    markdown: replaceNewlinesWithSpaces(paragraph.markdown),
   }));
 }
 
@@ -354,9 +352,12 @@ export async function persistBriefOutputForRun(input: {
     throw new Error("Brief paragraph count must match story summary count.");
   }
 
-  const { sortedClusters, sources } = await loadSelectedClustersAndSources(runId);
+  const { sortedClusters, sources } =
+    await loadSelectedClustersAndSources(runId);
   const clusterOrder = sortedClusters.map((cluster) => cluster.id);
-  const summaryClusterOrder = storySummaries.map((summary) => summary.cluster_id);
+  const summaryClusterOrder = storySummaries.map(
+    (summary) => summary.cluster_id,
+  );
   if (clusterOrder.join(",") !== summaryClusterOrder.join(",")) {
     throw new Error(
       "Stored publish checkpoint does not match current selected cluster order.",
@@ -426,12 +427,17 @@ export async function persistBriefOutputForRun(input: {
     }
   }
 
-  const storyArticleInsertRows: Array<{ story_id: string; article_id: string }> = [];
+  const storyArticleInsertRows: Array<{
+    story_id: string;
+    article_id: string;
+  }> = [];
   for (const [idx, cluster] of sortedClusters.entries()) {
     const storyId = storyIdByPosition.get(idx + 1);
     if (!storyId) continue;
     const seen = new Set<string>();
-    const clusterSources = sources.filter((source) => source.cluster_id === cluster.id);
+    const clusterSources = sources.filter(
+      (source) => source.cluster_id === cluster.id,
+    );
     for (const source of clusterSources) {
       const articleId = articleIdsBySource.get(
         `${source.publisher_id}::${source.canonical_url}`,

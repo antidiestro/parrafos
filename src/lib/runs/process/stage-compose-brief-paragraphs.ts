@@ -1,5 +1,8 @@
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
-import { completeRunStage, startRunStage } from "@/lib/runs/persistence/stages-repo";
+import {
+  completeRunStage,
+  startRunStage,
+} from "@/lib/runs/persistence/stages-repo";
 import {
   composeBriefParagraphsFromSummaries,
   type PublishBriefParagraphCheckpoint,

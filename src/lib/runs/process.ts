@@ -12,12 +12,12 @@ import {
   updateRunProgress,
 } from "@/lib/runs/process/shared";
 import { runClusterAndSelectStages } from "@/lib/runs/process/stage-cluster-and-select";
+import { runComposeBriefParagraphsStage } from "@/lib/runs/process/stage-compose-brief-paragraphs";
 import { runDiscoverCandidatesStage } from "@/lib/runs/process/stage-discover-candidates";
 import { runExtractBodiesStage } from "@/lib/runs/process/stage-extract-bodies";
-import { runPrefetchMetadataStage } from "@/lib/runs/process/stage-prefetch-metadata";
-import { runComposeBriefParagraphsStage } from "@/lib/runs/process/stage-compose-brief-paragraphs";
 import { runGenerateStorySummariesStage } from "@/lib/runs/process/stage-generate-story-summaries";
 import { runPersistBriefOutputStage } from "@/lib/runs/process/stage-persist-brief-output";
+import { runPrefetchMetadataStage } from "@/lib/runs/process/stage-prefetch-metadata";
 import { runUpsertArticlesStage } from "@/lib/runs/process/stage-upsert-articles";
 import { createInitialRunMetadata } from "@/lib/runs/progress";
 
