@@ -5,10 +5,31 @@
 
 ## Key Files
 - `process.ts`
-  - `claimNextPendingRun()`: atomically claims one `runs` row from `pending` to `running`.
-  - `processRun(runId)`: processes all publishers, clusters identified sources into stories, selects relevant clusters, and extracts/upserts selected article sources.
-  - `retryBriefGenerationForFailedRun(runId)`: when a run is `failed` but extraction and cluster selection already succeeded, runs brief generation again and sets the run to `completed` (admin-triggered).
-  - `retryFailedExtractionsForFailedRun(runId)`: when a run is `failed`, retries extraction for selected-cluster sources that still lack usable body text in `articles` (including previously `skipped_existing` cases with empty body text); if brief prerequisites become valid afterward, it publishes the brief and marks the run `completed`, otherwise keeps run `failed` with an explicit unavailability message.
+  - thin orchestration entrypoint that exports the public run API:
+    - `claimNextPendingRun()`
+    - `processRun(runId)`
+    - `retryBriefGenerationForFailedRun(runId)`
+    - `retryFailedExtractionsForFailedRun(runId)`
+- `process/claim.ts`
+  - pending-run claiming logic (`runs.pending` -> `runs.running`).
+- `process/retry-ops.ts`
+  - failed-run retry flows for brief publication and extraction retries.
+- `process/context.ts`
+  - mutable in-memory workflow context for a single `processRun()` execution.
+- `process/shared.ts`
+  - shared run utilities and contracts used across stages (logging, cancellation/progress updates, URL canonicalization, clustering/relevance helpers, brief publication, article existence checks).
+- `process/stage-discover-candidates.ts`
+  - stage implementation for `discover_candidates`.
+- `process/stage-prefetch-metadata.ts`
+  - stage implementation for `prefetch_metadata`.
+- `process/stage-cluster-and-select.ts`
+  - stage implementations for `cluster_sources` and `select_clusters`.
+- `process/stage-extract-bodies.ts`
+  - stage implementation for `extract_bodies`.
+- `process/stage-upsert-articles.ts`
+  - stage implementation for `upsert_articles`.
+- `process/stage-publish-brief.ts`
+  - stage implementation for `publish_brief`.
 - `brief-retry.ts`: `getBriefRetryAvailability(payload)` explains whether admin brief retry applies and why not; `canRetryBriefGeneration(payload)` is true when availability is `available` (selected clusters present, extracted body text per selected story; uses `briefArticleBodyKeys` from the run detail payload so `skipped_existing` sources still count when bodies live on other runs’ article rows). It also exposes extraction-retry availability helpers for failed runs.
 - `constants.ts`: run model defaults used in identification, clustering, relevance selection, and extraction.
 - `progress.ts`: shared metadata types and parsing helpers for run-progress read models/UI.
