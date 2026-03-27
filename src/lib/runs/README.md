@@ -121,6 +121,7 @@
 - Story summaries and brief paragraphs are generated in Spanish only.
 - Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing.
 - Story summaries use four sections (`Punto clave`, `Contexto`, `Detalles`, `Implicaciones`) and intentionally omit inline citations and source-list sections.
+- Publish-stage text normalizes common HTML/numeric entities back into UTF-8 characters before persistence (helps preserve Spanish accents/diacritics).
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
 - `discover_candidates` processes publishers in parallel (one concurrent task per configured publisher host) so homepage fetch and deterministic candidate discovery run simultaneously across sites.
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; prefetch scheduling is host-aware (global cap + per-host isolation, currently 1 in-flight request per host) to prevent single-host contention from dominating the worker pool; body-text extraction calls are intentionally sequential.

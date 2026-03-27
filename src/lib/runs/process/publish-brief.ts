@@ -87,6 +87,36 @@ function replaceNewlinesWithSpaces(value: string) {
     .trim();
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, code) =>
+      String.fromCodePoint(Number.parseInt(code, 10)),
+    )
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
+    .replace(/&aacute;/g, "á")
+    .replace(/&eacute;/g, "é")
+    .replace(/&iacute;/g, "í")
+    .replace(/&oacute;/g, "ó")
+    .replace(/&uacute;/g, "ú")
+    .replace(/&Aacute;/g, "Á")
+    .replace(/&Eacute;/g, "É")
+    .replace(/&Iacute;/g, "Í")
+    .replace(/&Oacute;/g, "Ó")
+    .replace(/&Uacute;/g, "Ú")
+    .replace(/&ntilde;/g, "ñ")
+    .replace(/&Ntilde;/g, "Ñ")
+    .replace(/&uuml;/g, "ü")
+    .replace(/&Uuml;/g, "Ü")
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&lsquo;|&rsquo;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&hellip;/g, "…")
+    .replace(/&amp;/g, "&");
+}
+
 function toHoursAgo(iso: string | null, nowMs: number): number | null {
   if (!iso) return null;
   const ts = +new Date(iso);
@@ -239,28 +269,29 @@ export async function generateStorySummariesForRun(
     }
 
     const prompt = [
-      "Escribe un resumen en profundidad en Markdown con estructura periodistica clara.",
-      "Instrucciones:",
-      "1) Escribe TODO en espanol.",
-      "2) Usa exactamente estas secciones y en este orden: ## Punto clave, ## Contexto, ## Detalles, ## Implicaciones.",
-      "3) En cada seccion, escribe 1 parrafo conciso.",
-      "4) No incluyas citas en linea ni lista de fuentes.",
-      "5) No inventes afirmaciones; usa solo las fuentes provistas.",
-      "6) Manten un tono esceptico y equilibrado: reconoce que las fuentes pueden tener sesgos y que las versiones oficiales pueden responder a agendas.",
-      "7) Ese escepticismo debe ser prudente y basado en evidencia, nunca conspirativo.",
-      `Titulo/tema de la historia: ${cluster.title}`,
+      "Write an in-depth story summary in Markdown with a clear journalistic structure.",
+      "Instructions:",
+      "1) Output MUST be in Spanish.",
+      "2) Use exactly these section headers and in this order: ## Punto clave, ## Contexto, ## Detalles, ## Implicaciones.",
+      "3) Write one concise paragraph per section.",
+      "4) Do not include inline citations and do not include a sources list.",
+      "5) Do not invent claims; use only the provided source material.",
+      "6) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
+      "7) Keep that skepticism evidence-based and non-conspiratorial.",
+      "8) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+      `Story title/topic: ${cluster.title}`,
       cluster.selection_reason
-        ? `Motivo de seleccion de la historia: ${cluster.selection_reason}`
+        ? `Why this story was selected: ${cluster.selection_reason}`
         : null,
       latestClusterSourceTime
-        ? `Marca temporal de la fuente mas reciente: ${new Date(latestClusterSourceTime).toISOString()}`
+        ? `Most recent source timestamp: ${new Date(latestClusterSourceTime).toISOString()}`
         : null,
       latestHoursAgo !== null
-        ? `La fuente mas reciente tiene aproximadamente ${latestHoursAgo} horas.`
+        ? `Most recent source is approximately ${latestHoursAgo} hours old.`
         : null,
-      "Fuentes relevantes (textos completos), cada una delimitada por ---:",
+      "Relevant sources (full texts), each delimited by ---:",
       sourceTexts.map((text) => `---\n${text}\n---`).join("\n"),
-      "Escribe ahora el resumen detallado.",
+      "Write the detailed summary now.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -275,7 +306,7 @@ export async function generateStorySummariesForRun(
     summaries.push({
       cluster_id: cluster.id,
       title: cluster.title,
-      detail_markdown: generated.detail_markdown.trim(),
+      detail_markdown: decodeHtmlEntities(generated.detail_markdown).trim(),
     });
   }
 
@@ -301,17 +332,18 @@ export async function composeBriefParagraphsFromSummaries(
     .join("\n\n---\n\n");
 
   const prompt = [
-    "Estas componiendo un brief final de varias noticias a partir de resumenes detallados.",
-    "Escribe TODO en espanol.",
-    "La salida debe incluir exactamente un parrafo markdown por historia, en el mismo orden.",
-    "Cada parrafo debe tener longitud media (5-6 oraciones).",
-    "Sin encabezados, sin listas, sin citas en linea.",
-    "Usa una reescritura equilibrada: mejora coherencia y reduce repeticion preservando los hechos de cada historia.",
-    "Manten un tono esceptico y equilibrado: reconoce posibles sesgos en fuentes y posibles agendas en versiones oficiales.",
-    "Ese tono debe ser prudente y basado en evidencia, no conspirativo.",
-    "No mezcles historias ni traslades hechos entre historias.",
-    `Numero de historias: ${storySummaries.length}`,
-    "Resumenes de historias (ordenados):",
+    "You are composing a final multi-story news brief from detailed story summaries.",
+    "Output MUST be in Spanish.",
+    "Return exactly one markdown paragraph per story, in the same order.",
+    "Each paragraph should be medium length (5-6 sentences).",
+    "No headings, no bullet lists, no inline citations.",
+    "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts.",
+    "Keep a skeptical and balanced tone: acknowledge possible source bias and potential agendas in official versions.",
+    "Keep that tone cautious and evidence-based, not conspiratorial.",
+    "Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+    "Do not merge stories or move facts across story boundaries.",
+    `Number of stories: ${storySummaries.length}`,
+    "Story summaries (ordered):",
     summaryBlocks,
     'Return JSON with {"paragraphs":[{"markdown":"..."}, ...]}',
   ].join("\n");
@@ -335,7 +367,7 @@ export async function composeBriefParagraphsFromSummaries(
 
   return generated.paragraphs.map((paragraph, idx) => ({
     cluster_id: storySummaries[idx].cluster_id,
-    markdown: replaceNewlinesWithSpaces(paragraph.markdown),
+    markdown: replaceNewlinesWithSpaces(decodeHtmlEntities(paragraph.markdown)),
   }));
 }
 
