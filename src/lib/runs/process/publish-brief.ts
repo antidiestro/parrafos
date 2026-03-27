@@ -373,6 +373,7 @@ export async function composeBriefParagraphsFromSummaries(
     "Start each paragraph with a short inline title in bold, ending with a period, then continue in the same paragraph.",
     'Required format at paragraph start: "**Título corto.** " followed by the rest of the paragraph.',
     "Keep the bold title short (2-6 words), neutral, and objective.",
+    "The bold title must describe the latest concrete development in that story, not the broader ongoing theme.",
     "No headings, no bullet lists, no inline citations.",
     "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts.",
     "Make transitions between consecutive paragraphs flow naturally in the given order, using concise bridging language without adding new facts.",
