@@ -21,15 +21,26 @@ export async function selectClusters(input: {
   sourceByKey: Map<string, CandidateSource>;
 }): Promise<ClusterDraft[]> {
   divider("select_clusters");
-  logLine("select_clusters: input prepared", {
-    eligibleClusters: input.clusters.length,
-  });
   if (input.clusters.length === 0) {
     throw new Error("No eligible clusters available for selection.");
   }
 
+  const clustersForSelection = input.clusters.filter(
+    (cluster) => cluster.sourceKeys.length > 1,
+  );
+  logLine("select_clusters: input prepared", {
+    totalClusters: input.clusters.length,
+    singletonsExcluded: input.clusters.length - clustersForSelection.length,
+    eligibleClusters: clustersForSelection.length,
+  });
+  if (clustersForSelection.length === 0) {
+    throw new Error(
+      "No multi-source clusters available for relevance selection (every cluster is a single article).",
+    );
+  }
+
   const nowMs = Date.now();
-  const evidence = input.clusters.map((cluster) => {
+  const evidence = clustersForSelection.map((cluster) => {
     const sources = cluster.sourceKeys
       .map((key) => input.sourceByKey.get(key))
       .filter((value): value is CandidateSource => Boolean(value));
@@ -117,7 +128,7 @@ export async function selectClusters(input: {
     if (selectionById.size >= MAX_RELEVANT_STORIES) break;
   }
 
-  const selected = input.clusters
+  const selected = clustersForSelection
     .filter((cluster) => selectionById.has(cluster.id))
     .map((cluster) => ({
       ...cluster,

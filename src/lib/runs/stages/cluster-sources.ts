@@ -38,11 +38,11 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
 
   const generated = await generateGeminiJson(
     [
-      "Group only clearly related sources into specific stories.",
-      "Find at least 10 story clusters.",
-      "Each source_key can appear in at most one story.",
-      "Only group sources that describe one concrete event or development.",
-      "Leave uncertain sources unassigned.",
+      "Assign every candidate source to exactly one story.",
+      "Use as many story clusters as needed so each source_key appears in exactly one story.",
+      "Group clearly related sources that describe the same concrete event or development.",
+      "Single-source clusters are required when a source does not clearly match any other.",
+      "Do not leave any candidate unassigned.",
       'Return JSON object: {"stories":[{"title":"...","source_keys":["..."]}]}',
       "Candidate sources (one per line: source_key | published_at | title):",
       inputLines.join("\n"),
@@ -69,13 +69,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
       sourceKeys.push(key);
     }
 
-    if (sourceKeys.length < 3) continue;
-    const uniquePublishers = new Set(
-      sourceKeys
-        .map((key) => sourceByKey.get(key)?.publisherId)
-        .filter((value): value is string => Boolean(value)),
-    );
-    if (uniquePublishers.size < 3) continue;
+    if (sourceKeys.length === 0) continue;
 
     clusters.push({
       id: `cluster_${nextClusterNumber}`,
@@ -86,9 +80,32 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     nextClusterNumber += 1;
   }
 
+  const orphanKeys = Array.from(sourceByKey.keys())
+    .filter((key) => !usedKeys.has(key))
+    .sort((a, b) => a.localeCompare(b));
+  for (const key of orphanKeys) {
+    const candidate = sourceByKey.get(key);
+    if (!candidate) {
+      throw new Error(`cluster_sources: orphan key not in sourceByKey: ${key}`);
+    }
+    usedKeys.add(key);
+    const titleFromArticle =
+      (toSingleLine(candidate.title) || "").trim() || `Story cluster ${nextClusterNumber}`;
+    clusters.push({
+      id: `cluster_${nextClusterNumber}`,
+      title: titleFromArticle,
+      sourceKeys: [key],
+      selectionReason: null,
+    });
+    nextClusterNumber += 1;
+  }
+
+  const assignedSources = clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0);
   logLine("cluster_sources: done", {
     clustersCreated: clusters.length,
-    assignedSources: clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0),
+    assignedSources,
+    uniqueCandidates: sourceByKey.size,
+    singletonBackfill: orphanKeys.length,
     candidatesTotal: candidates.length,
   });
   return { clusters, sourceByKey };

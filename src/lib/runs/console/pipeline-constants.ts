@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-export const MIN_SOURCES_PER_CLUSTER = 3;
-export const TARGET_CLUSTER_COUNT = 10;
 export const MAX_RELEVANT_STORIES = 6;
 export const EXISTING_ARTICLE_BATCH_SIZE = 200;
 export const EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS = 7_000;
