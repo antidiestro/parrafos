@@ -126,14 +126,20 @@ function toHoursAgo(iso: string | null, nowMs: number): number | null {
   return Math.round((delta / (1000 * 60 * 60)) * 10) / 10;
 }
 
-function getMarkdownLinks(markdown: string): string[] {
-  const matches = markdown.match(/\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/g);
-  return matches ?? [];
-}
-
 function countBulletItems(markdown: string): number {
   const matches = markdown.match(/^\s*[*-]\s+/gm);
   return matches?.length ?? 0;
+}
+
+function getMarkdownLinkUrls(markdown: string): string[] {
+  return Array.from(
+    markdown.matchAll(/\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/g),
+    (match) => match[1],
+  );
+}
+
+function getBoldLabelSectionHeadings(markdown: string): RegExpMatchArray[] {
+  return Array.from(markdown.matchAll(/^\*\*[^*\n]+:\*\*$/gm));
 }
 
 function passesStorySummaryFormatChecks(
@@ -141,14 +147,36 @@ function passesStorySummaryFormatChecks(
   allowedSourceUrls: Set<string>,
 ): boolean {
   const requiredLinks = Math.min(2, allowedSourceUrls.size);
-  const links = getMarkdownLinks(markdown);
-  if (links.length < requiredLinks) return false;
-  if (countBulletItems(markdown) < 2) return false;
+  const linkUrls = getMarkdownLinkUrls(markdown);
+  if (linkUrls.length < requiredLinks) return false;
+
+  const headings = getBoldLabelSectionHeadings(markdown);
+  if (headings.length < 4) return false;
+
+  const firstHeadingIdx = headings[0]?.index ?? 0;
+  const openingParagraph = markdown.slice(0, firstHeadingIdx).trim();
+  if (openingParagraph.length < 40) return false;
+
+  const sectionBulletCounts = headings.map((heading, idx) => {
+    const sectionStart = (heading.index ?? 0) + heading[0].length;
+    const sectionEnd = headings[idx + 1]?.index ?? markdown.length;
+    const sectionBody = markdown.slice(sectionStart, sectionEnd).trim();
+    return countBulletItems(sectionBody);
+  });
+  if (sectionBulletCounts.some((count) => count < 2)) return false;
+  if (countBulletItems(markdown) < 8) return false;
+
+  const linkedBulletUrls = Array.from(
+    markdown.matchAll(
+      /^\s*[*-]\s+.*\[[^\]]+\]\((https?:\/\/[^)\s]+)\).*$/gm,
+    ),
+    (match) => match[1],
+  );
+  if (linkedBulletUrls.length < requiredLinks) return false;
 
   let allowedLinkCount = 0;
-  for (const match of links) {
-    const rawUrl = match.replace(/^\[[^\]]+\]\(|\)$/g, "");
-    if (allowedSourceUrls.has(rawUrl)) {
+  for (const url of linkUrls) {
+    if (allowedSourceUrls.has(url)) {
       allowedLinkCount += 1;
     }
   }
@@ -304,16 +332,18 @@ export async function generateStorySummariesForRun(
       "Write an in-depth story summary in Markdown with a clear journalistic structure.",
       "Instructions:",
       "1) Output MUST be in Spanish.",
-      "2) Start with a short opening paragraph (no heading).",
-      "3) Then add multiple Markdown sections using bold labels with trailing colon.",
-      "3a) Use labels like: **Por qué importa:**, **Ponte al día rápido:**, **Entre líneas:**, **Qué pasó:**, **El trasfondo:**, **Lo que sigue:**, **La otra versión:**, **En números:**.",
-      "4) Each section must include bullet points using `*` and should contain concrete facts.",
-      `5) Include at least ${requiredLinks} inline Markdown links in the body using [text](url).`,
-      "6) Use only source URLs provided in the input; do not invent or alter URLs.",
-      "7) Do not invent claims; use only the provided source material.",
-      "8) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
-      "9) Keep that skepticism evidence-based and non-conspiratorial.",
-      "10) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+      "2) Start with a short opening paragraph (no heading) that works like a lede.",
+      "3) Then add 4 to 6 Markdown sections using bold labels with trailing colon on their own line.",
+      "3a) Prefer labels like: **Por qué importa:**, **Ponte al día rápido:**, **Entre líneas:**, **Qué pasó:**, **El trasfondo:**, **Lo que sigue:**, **La otra versión:**, **En números:**.",
+      "4) Every section must contain at least 2 bullet points using `*` and each bullet should contain concrete facts.",
+      `5) Include at least ${requiredLinks} inline Markdown links in bullet points using [text](url).`,
+      "6) Embed those links naturally inside factual bullets; do not dump links in a separate link-only section or at the end.",
+      "7) Use only source URLs provided in the input; do not invent or alter URLs.",
+      "8) Do not invent claims; use only the provided source material.",
+      "9) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
+      "10) Keep that skepticism evidence-based and non-conspiratorial.",
+      "11) Follow an Axios-like explainer structure closely: opening paragraph first, then labeled sections with bullets.",
+      "12) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
       `Story title/topic: ${cluster.title}`,
       cluster.selection_reason
         ? `Why this story was selected: ${cluster.selection_reason}`
@@ -381,10 +411,11 @@ export async function generateStorySummariesForRun(
                 "Revise the previous summary to satisfy formatting constraints while preserving facts.",
                 "Hard requirements:",
                 "- Keep output in Spanish and Markdown.",
-                "- Keep a short opening paragraph.",
-                "- Use multiple bold-label sections ending with colon.",
-                "- Use bullet points (`*`) in sections.",
+                "- Keep a short opening paragraph before any section heading.",
+                "- Use 4 to 6 bold-label sections ending with colon on their own line.",
+                "- Every section must contain at least 2 bullet points (`*`).",
                 `- Include at least ${requiredLinks} inline links with source URLs from this exact allowed list.`,
+                "- Put those inline links inside factual bullet points, not in a separate links block.",
                 `Allowed URLs: ${Array.from(allowedSourceUrls).join(" | ")}`,
                 "Do not invent facts or URLs.",
                 "Previous draft:",
@@ -400,6 +431,11 @@ export async function generateStorySummariesForRun(
             )
           ).detail_markdown,
         ).trim();
+    if (!passesStorySummaryFormatChecks(detailMarkdown, allowedSourceUrls)) {
+      throw new Error(
+        `Generated story summary for cluster ${cluster.id} failed markdown format checks.`,
+      );
+    }
 
     summaries.push({
       cluster_id: cluster.id,

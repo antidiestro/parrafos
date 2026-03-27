@@ -126,7 +126,7 @@
   - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
 - Story summaries and brief paragraphs are generated in Spanish only.
 - Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing.
-- Story summaries use a sectioned Markdown format with bold section labels and bullet points; length is variable and each summary includes inline source links generated from the selected cluster sources.
+- Story summaries use an Axios-like sectioned Markdown format with a short opening paragraph followed by 4-6 bold section labels; each section must contain at least 2 bullet points, and inline source links must be embedded naturally inside those bullets using selected-cluster source URLs only.
 - Publish-stage text normalizes common HTML/numeric entities back into UTF-8 characters before persistence (helps preserve Spanish accents/diacritics).
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
 - Manual regenerate controls are terminal-run only (`failed`, `completed`, `cancelled`) to avoid racing active worker execution:
