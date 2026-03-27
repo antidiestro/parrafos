@@ -53,6 +53,9 @@
 ## Worker Logging (Observability)
 - `process.ts` emits `console.log` output with the prefix `[worker:runs]` for major lifecycle stages and per-item outcomes.
 - Logs include `runId` context, publisher start/finish + candidate counts, article queued/skipped, extraction success/failure, and article upsert results.
+- Top-level `processRun: fatal error` logs now include serialized error details (name/message/stack/cause) instead of only a flattened message.
+- `prefetch_metadata` failure logs include the candidate URL, the last attempted URL, and serialized error details (name/message/stack/cause) for fetch diagnostics.
+- `prefetch_metadata` existing-article DB lookup failures now log chunk context (chunk index/size + canonical URL sample) and include PostgREST fields (`code`, `details`, `hint`, `status`) in the thrown fatal error message.
 - Low-level HTML fetch/cleanup logs are emitted from `src/lib/extract/fetch.ts` and `src/lib/extract/html.ts`.
 
 ## Run Lifecycle Contract
@@ -93,6 +96,7 @@
 - Article metadata validation is deterministic (no LLM): JSON-LD `NewsArticle`/`Article` is preferred; meta tags are only used when `article:published_time` exists.
 - All identified candidates go through a deterministic metadata prefetch stage before clustering.
 - Metadata prefetch first checks `articles` for an existing `canonical_url` match derived from the identified URL; when found, it reuses persisted metadata (`canonical_url`, `title`, `published_at`, `source_url`) and skips live URL fetch.
+- Existing-article metadata lookups are chunked by both item count and encoded URL length to avoid oversized `.in()` query URLs that can overflow HTTP header limits.
 - Canonical URL cache matching assumes canonical URLs do not overlap across publishers.
 - Metadata prefetch normalizes timezone-less publish timestamps with `RUN_PUBLISHED_AT_FALLBACK_TIMEZONE` (default `America/Santiago`), then keeps only candidates published in the last 24 hours for clustering; older/missing-date candidates are marked `not_selected_for_extraction`.
 - Candidates missing both valid JSON-LD and required meta fallback are discarded before clustering.

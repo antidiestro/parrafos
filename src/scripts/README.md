@@ -5,6 +5,8 @@
 
 ## Key Files
 - `run-worker.ts`: claims queued runs and executes extraction pipeline continuously or once.
+- `run-workflow-console.ts`: lightweight console entrypoint for standalone brief workflow execution.
+- `workflow-console/*`: split console workflow modules (types, schemas/constants, logging, utils, stage implementations, orchestrator).
 - `evaluate-clustering.ts`: offline baseline-vs-precision clustering evaluator for multilingual candidate sets.
 
 ## Worker Behavior
@@ -13,6 +15,7 @@
 - `npm run worker:runs -- --once`: claim and process at most one pending run, then exit.
 - Delegates actual run logic to `src/lib/runs/process.ts`.
 - During processing, run stage attempts are persisted in `run_stage_executions` and mirrored into `runs.current_stage`/`runs.stage_attempt`.
+- `npm run workflow:console`: executes a separate direct workflow pipeline from publisher crawl through brief publication without creating/updating run-progress rows; stage progress is printed directly to stdout.
 
 ## Logging
 - Worker-level logs are emitted via `console.log` with the prefix `[worker:runs]`.
@@ -20,6 +23,7 @@
 
 ## Common Changes
 - Polling cadence/runtime behavior: update `run-worker.ts`.
+- Console workflow behavior/logging: update `run-workflow-console.ts`.
 - Extraction semantics: change `src/lib/runs` instead of this script.
 - Clustering quality evaluation workflow: update `evaluate-clustering.ts`.
 

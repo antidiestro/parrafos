@@ -12,6 +12,7 @@ import type { ProcessRunContext } from "@/lib/runs/process/context";
 import {
   errorToMessage,
   isRunCancelled,
+  logRun,
   type PrefetchedArticle,
   toCanonicalUrl,
   updateRunProgress,
@@ -26,17 +27,64 @@ type ExistingArticleMetadata = {
 };
 
 const EXISTING_ARTICLE_BATCH_SIZE = 200;
+const EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS = 7_000;
+
+function serializeErrorForLog(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const withCause = error as Error & { cause?: unknown };
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause:
+        withCause.cause instanceof Error
+          ? {
+              name: withCause.cause.name,
+              message: withCause.cause.message,
+              stack: withCause.cause.stack,
+            }
+          : withCause.cause,
+    };
+  }
+  return { value: error };
+}
 
 function candidateCanonicalUrl(url: string): string {
   return toCanonicalUrl(url, url) ?? url;
 }
 
-function chunkArray<T>(items: T[], chunkSize: number): T[][] {
-  if (items.length === 0) return [];
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
+function chunkCanonicalUrlsForLookup(urls: string[]): string[][] {
+  if (urls.length === 0) return [];
+  const chunks: string[][] = [];
+  let currentChunk: string[] = [];
+  let currentEncodedChars = 0;
+
+  for (const url of urls) {
+    const encodedLength = encodeURIComponent(url).length;
+    const nextEncodedChars =
+      currentChunk.length === 0
+        ? encodedLength
+        : currentEncodedChars + 1 + encodedLength;
+    const wouldExceedCount = currentChunk.length >= EXISTING_ARTICLE_BATCH_SIZE;
+    const wouldExceedEncodedChars =
+      currentChunk.length > 0 &&
+      nextEncodedChars > EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS;
+
+    if (wouldExceedCount || wouldExceedEncodedChars) {
+      chunks.push(currentChunk);
+      currentChunk = [url];
+      currentEncodedChars = encodedLength;
+      continue;
+    }
+
+    currentChunk.push(url);
+    currentEncodedChars = nextEncodedChars;
   }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+
   return chunks;
 }
 
@@ -54,6 +102,7 @@ function isPublishedWithinHours(
 }
 
 async function loadExistingArticleMetadataByCandidate(
+  runId: string,
   articles: ProcessRunContext["metadata"]["articles"],
 ): Promise<Map<string, ExistingArticleMetadata>> {
   const supabase = createSupabaseServiceClient();
@@ -66,16 +115,36 @@ async function loadExistingArticleMetadataByCandidate(
 
   const existingByCanonicalUrl = new Map<string, ExistingArticleMetadata>();
   const canonicalUrls = Array.from(canonicalUrlSet);
-  for (const canonicalUrlChunk of chunkArray(
-    canonicalUrls,
-    EXISTING_ARTICLE_BATCH_SIZE,
-  )) {
+  const canonicalUrlChunks = chunkCanonicalUrlsForLookup(canonicalUrls);
+  for (let chunkIndex = 0; chunkIndex < canonicalUrlChunks.length; chunkIndex += 1) {
+    const canonicalUrlChunk = canonicalUrlChunks[chunkIndex];
     const { data, error } = await supabase
       .from("articles")
       .select("canonical_url,title,published_at,source_url")
       .in("canonical_url", canonicalUrlChunk);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      const errorDetails = {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        status: (error as { status?: number }).status,
+      };
+      logRun(runId, "prefetch_metadata existing metadata lookup failed", {
+        stage: "prefetch_metadata",
+        chunkIndex: chunkIndex + 1,
+        chunkCount: canonicalUrlChunks.length,
+        chunkSize: canonicalUrlChunk.length,
+        canonicalUrlSample: canonicalUrlChunk.slice(0, 5),
+        error: errorDetails,
+      });
+      throw new Error(
+        `Existing metadata lookup failed (chunk ${chunkIndex + 1}/${canonicalUrlChunks.length}, size ${canonicalUrlChunk.length}, sample urls: ${canonicalUrlChunk
+          .slice(0, 3)
+          .join(", ")}): ${error.message} (code=${error.code ?? "n/a"}, status=${String((error as { status?: number }).status ?? "n/a")}, details=${error.details ?? "n/a"}, hint=${error.hint ?? "n/a"})`,
+      );
+    }
 
     for (const row of data ?? []) {
       existingByCanonicalUrl.set(row.canonical_url, {
@@ -196,6 +265,7 @@ export async function runPrefetchMetadataStage(
     message: "Metadata prefetch stage started",
   });
   const existingByCanonicalUrl = await loadExistingArticleMetadataByCandidate(
+    runId,
     metadata.articles,
   );
 
@@ -244,10 +314,12 @@ export async function runPrefetchMetadataStage(
       article.error_message = null;
       await updateRunProgress(runId, { metadata });
 
+      let attemptedUrl = article.url;
       try {
         const articleRes = await fetchHtmlWithRetries(article.url, {
           retries: 0,
         });
+        attemptedUrl = articleRes.finalUrl;
         const metadataResult = extractArticleMetadata(
           articleRes.finalUrl,
           articleRes.html,
@@ -286,13 +358,21 @@ export async function runPrefetchMetadataStage(
           html: articleRes.html,
         };
       } catch (error) {
+        const errorMessage = errorToMessage(error) ?? "Metadata fetch failed";
+        const failureMessage = `Metadata fetch failed for ${article.url}: ${errorMessage}`;
+        logRun(runId, "prefetch_metadata candidate failed", {
+          stage: "prefetch_metadata",
+          publisherId: article.publisher_id,
+          candidateUrl: article.url,
+          attemptedUrl,
+          error: serializeErrorForLog(error),
+        });
         article.status = "failed";
-        article.error_message =
-          errorToMessage(error) ?? "Metadata fetch failed";
+        article.error_message = failureMessage;
         metadata.errors.push({
           publisher_id: article.publisher_id,
           url: article.url,
-          message: errorToMessage(error) ?? "Metadata fetch failed",
+          message: failureMessage,
         });
         await updateRunProgress(runId, { metadata });
         return null;

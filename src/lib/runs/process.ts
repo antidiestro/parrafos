@@ -31,6 +31,26 @@ export {
   retryFailedExtractionsForFailedRun,
 };
 
+function serializeErrorForLog(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const withCause = error as Error & { cause?: unknown };
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause:
+        withCause.cause instanceof Error
+          ? {
+              name: withCause.cause.name,
+              message: withCause.cause.message,
+              stack: withCause.cause.stack,
+            }
+          : withCause.cause,
+    };
+  }
+  return { value: error };
+}
+
 export async function processRun(runId: string): Promise<void> {
   logRun(runId, "processRun: starting");
   const metadata = createInitialRunMetadata();
@@ -66,11 +86,14 @@ export async function processRun(runId: string): Promise<void> {
       sourcesSelected: metadata.sources_selected,
     });
   } catch (error) {
-    logRun(runId, "processRun: fatal error", { error: errorToMessage(error) });
+    const errorMessage = errorToMessage(error) ?? "Run failed";
+    logRun(runId, "processRun: fatal error", {
+      error: serializeErrorForLog(error),
+    });
     await updateRunProgress(runId, {
       status: "failed",
       ended_at: new Date().toISOString(),
-      error_message: errorToMessage(error) ?? "Run failed",
+      error_message: errorMessage,
       metadata,
     });
   }

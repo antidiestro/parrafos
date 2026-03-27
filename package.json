@@ -13,6 +13,7 @@
     "lint": "eslint",
     "worker:runs": "dotenv -e .env -- tsx src/scripts/run-worker.ts",
     "worker:runs:watch": "dotenv -e .env -- tsx watch src/scripts/run-worker.ts",
+    "workflow:console": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
   },
   "dependencies": {
