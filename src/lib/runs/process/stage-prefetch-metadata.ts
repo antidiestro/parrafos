@@ -57,49 +57,37 @@ async function loadExistingArticleMetadataByCandidate(
   articles: ProcessRunContext["metadata"]["articles"],
 ): Promise<Map<string, ExistingArticleMetadata>> {
   const supabase = createSupabaseServiceClient();
-  const canonicalUrlsByPublisher = new Map<string, Set<string>>();
+  const canonicalUrlSet = new Set<string>();
 
   for (const article of articles) {
-    const publisherSet = canonicalUrlsByPublisher.get(article.publisher_id);
     const canonicalUrl = candidateCanonicalUrl(article.url);
-    if (publisherSet) {
-      publisherSet.add(canonicalUrl);
-    } else {
-      canonicalUrlsByPublisher.set(
-        article.publisher_id,
-        new Set([canonicalUrl]),
-      );
+    canonicalUrlSet.add(canonicalUrl);
+  }
+
+  const existingByCanonicalUrl = new Map<string, ExistingArticleMetadata>();
+  const canonicalUrls = Array.from(canonicalUrlSet);
+  for (const canonicalUrlChunk of chunkArray(
+    canonicalUrls,
+    EXISTING_ARTICLE_BATCH_SIZE,
+  )) {
+    const { data, error } = await supabase
+      .from("articles")
+      .select("canonical_url,title,published_at,source_url")
+      .in("canonical_url", canonicalUrlChunk);
+
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      existingByCanonicalUrl.set(row.canonical_url, {
+        canonicalUrl: row.canonical_url,
+        title: row.title,
+        publishedAt: row.published_at,
+        sourceUrl: row.source_url ?? row.canonical_url,
+      });
     }
   }
 
-  const existingByKey = new Map<string, ExistingArticleMetadata>();
-  for (const [publisherId, canonicalUrlSet] of canonicalUrlsByPublisher) {
-    const canonicalUrls = Array.from(canonicalUrlSet);
-    for (const canonicalUrlChunk of chunkArray(
-      canonicalUrls,
-      EXISTING_ARTICLE_BATCH_SIZE,
-    )) {
-      const { data, error } = await supabase
-        .from("articles")
-        .select("publisher_id,canonical_url,title,published_at,source_url")
-        .eq("publisher_id", publisherId)
-        .in("canonical_url", canonicalUrlChunk);
-
-      if (error) throw new Error(error.message);
-
-      for (const row of data ?? []) {
-        const key = `${row.publisher_id}::${row.canonical_url}`;
-        existingByKey.set(key, {
-          canonicalUrl: row.canonical_url,
-          title: row.title,
-          publishedAt: row.published_at,
-          sourceUrl: row.source_url ?? row.canonical_url,
-        });
-      }
-    }
-  }
-
-  return existingByKey;
+  return existingByCanonicalUrl;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -207,7 +195,7 @@ export async function runPrefetchMetadataStage(
     eventType: "stage_started",
     message: "Metadata prefetch stage started",
   });
-  const existingByCandidateKey = await loadExistingArticleMetadataByCandidate(
+  const existingByCanonicalUrl = await loadExistingArticleMetadataByCandidate(
     metadata.articles,
   );
 
@@ -224,8 +212,9 @@ export async function runPrefetchMetadataStage(
     },
     async (article): Promise<PrefetchedArticle | null> => {
       if (await isRunCancelled(runId)) return null;
-      const existingKey = `${article.publisher_id}::${candidateCanonicalUrl(article.url)}`;
-      const existing = existingByCandidateKey.get(existingKey);
+      const existing = existingByCanonicalUrl.get(
+        candidateCanonicalUrl(article.url),
+      );
 
       if (existing) {
         article.canonical_url = existing.canonicalUrl;

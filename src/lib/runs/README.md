@@ -92,7 +92,8 @@
 - Candidate identification is deterministic (no LLM): homepage `<a href>` URLs are resolved/canonicalized and must have at least 3 pathname segments.
 - Article metadata validation is deterministic (no LLM): JSON-LD `NewsArticle`/`Article` is preferred; meta tags are only used when `article:published_time` exists.
 - All identified candidates go through a deterministic metadata prefetch stage before clustering.
-- Metadata prefetch first checks `articles` for an existing `(publisher_id, canonical_url)` match derived from the identified URL; when found, it reuses persisted metadata (`canonical_url`, `title`, `published_at`, `source_url`) and skips live URL fetch.
+- Metadata prefetch first checks `articles` for an existing `canonical_url` match derived from the identified URL; when found, it reuses persisted metadata (`canonical_url`, `title`, `published_at`, `source_url`) and skips live URL fetch.
+- Canonical URL cache matching assumes canonical URLs do not overlap across publishers.
 - Metadata prefetch normalizes timezone-less publish timestamps with `RUN_PUBLISHED_AT_FALLBACK_TIMEZONE` (default `America/Santiago`), then keeps only candidates published in the last 24 hours for clustering; older/missing-date candidates are marked `not_selected_for_extraction`.
 - Candidates missing both valid JSON-LD and required meta fallback are discarded before clustering.
 - Body text extraction still uses LLM parsing on cleaned article text.
