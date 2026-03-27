@@ -17,15 +17,15 @@
 - `process/context.ts`
   - mutable in-memory workflow context for a single `processRun()` execution.
 - `process/shared.ts`
-  - shared run utilities and contracts used across stages (logging, cancellation/progress updates, URL canonicalization, clustering/relevance helpers, brief publication, article existence checks).
+  - shared run utilities and contracts used across stages and retries (logging, cancellation/progress updates, URL canonicalization, brief publication, extraction helpers, and shared process types).
 - `process/stage-discover-candidates.ts`
   - stage implementation for `discover_candidates`.
 - `process/stage-prefetch-metadata.ts`
-  - stage implementation for `prefetch_metadata`.
+  - stage implementation for `prefetch_metadata` (including local bounded-concurrency mapping helper).
 - `process/stage-cluster-and-select.ts`
-  - stage implementations for `cluster_sources` and `select_clusters`.
+  - stage implementations for `cluster_sources` and `select_clusters`, including cluster persistence, eligibility marking, and relevance selection helpers.
 - `process/stage-extract-bodies.ts`
-  - stage implementation for `extract_bodies`.
+  - stage implementation for `extract_bodies`, including local existing-article lookup helper.
 - `process/stage-upsert-articles.ts`
   - stage implementation for `upsert_articles`.
 - `process/stage-publish-brief.ts`

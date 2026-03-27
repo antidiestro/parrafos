@@ -6,7 +6,6 @@ import {
 } from "@/lib/runs/persistence/stages-repo";
 import type { ProcessRunContext } from "@/lib/runs/process/context";
 import {
-  articleExists,
   cleanTextForLLM,
   errorToMessage,
   extractArticleBodyText,
@@ -14,6 +13,23 @@ import {
   logRun,
   updateRunProgress,
 } from "@/lib/runs/process/shared";
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
+
+async function articleExists(
+  publisherId: string,
+  canonicalUrl: string,
+): Promise<boolean> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("articles")
+    .select("id")
+    .eq("publisher_id", publisherId)
+    .eq("canonical_url", canonicalUrl)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
 
 export async function runExtractBodiesStage(
   context: ProcessRunContext,
