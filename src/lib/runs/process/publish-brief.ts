@@ -220,6 +220,7 @@ export async function generateStorySummariesForRun(
     await loadSelectedClustersAndSources(runId);
   const articleByKey = await loadArticleBodiesBySource(sources);
   const nowMs = Date.now();
+  const referenceNowIso = new Date(nowMs).toISOString();
   const summaries: StorySummarySchemaRow[] = [];
 
   for (const cluster of sortedClusters) {
@@ -283,6 +284,7 @@ export async function generateStorySummariesForRun(
       "8) Keep that skepticism evidence-based and non-conspiratorial.",
       "9) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
       `10) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
+      `11) Reference date/time for writing criteria: ${referenceNowIso}. Use this timestamp as "now" when assessing recency and temporal context.`,
       `Story title/topic: ${cluster.title}`,
       cluster.selection_reason
         ? `Why this story was selected: ${cluster.selection_reason}`
@@ -353,6 +355,7 @@ export async function composeBriefParagraphsFromSummaries(
   if (storySummaries.length === 0) {
     throw new Error("Cannot compose brief paragraphs without story summaries.");
   }
+  const referenceNowIso = new Date().toISOString();
   const summaryBlocks = storySummaries
     .map((summary, idx) =>
       [
@@ -376,6 +379,9 @@ export async function composeBriefParagraphsFromSummaries(
     "The bold title must describe the latest concrete development in that story, not the broader ongoing theme.",
     "No headings, no bullet lists, no inline citations.",
     "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts.",
+    "Prioritize newer developments over older background context when deciding emphasis within each paragraph.",
+    "Pay close attention to source publication dates/timestamps mentioned in each story summary and treat the most recent verified updates as primary.",
+    `Reference date/time for writing criteria: ${referenceNowIso}. Use this timestamp as "now" when assessing recency and temporal context.`,
     "Make transitions between consecutive paragraphs flow naturally in the given order, using concise bridging language without adding new facts.",
     "Keep a skeptical and balanced tone: acknowledge possible source bias and potential agendas in official versions.",
     "Keep that tone cautious and evidence-based, not conspiratorial.",

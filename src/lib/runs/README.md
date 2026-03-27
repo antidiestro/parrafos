@@ -128,8 +128,10 @@
   - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
 - Story summaries and brief paragraphs are generated in Spanish only.
 - Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing, and prompts require strictly objective, fact-grounded wording (no value-laden framing or listed subjective Spanish terms).
+- Story-summary and brief-paragraph prompts include an explicit current timestamp reference ("now") that the model should use for recency-based writing criteria.
 - Brief paragraphs are generated as single markdown paragraphs of exactly 4 sentences each, and each paragraph starts with a short inline bold title ending in a period (for example, `**Título breve.**`), while maintaining flow between adjacent paragraphs.
 - The inline bold short title must reflect the latest concrete development of each story, not the overall long-running theme.
+- Brief paragraph emphasis is recency-weighted: writing should prioritize newer verified developments by paying attention to publication timestamps referenced in the input summaries.
 - Story summaries are generated as Spanish Markdown with a clear journalistic structure and can mix short sections and bullets; strict section-count/bullet-count validation is not enforced, but summaries must remain source-grounded and only use selected-cluster source URLs when adding links.
 - Publish-stage text normalizes common HTML/numeric entities back into UTF-8 characters before persistence (helps preserve Spanish accents/diacritics).
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
