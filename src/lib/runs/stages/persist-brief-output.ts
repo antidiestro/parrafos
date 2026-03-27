@@ -1,7 +1,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import type {
-  BriefParagraphRow,
+  BriefSectionRow,
   CandidateSource,
   ClusterDraft,
   StorySummaryRow,
@@ -48,16 +48,16 @@ export async function persistBriefOutput(input: {
   selectedClusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
   storySummaries: StorySummaryRow[];
-  briefParagraphs: BriefParagraphRow[];
+  briefSections: BriefSectionRow[];
 }): Promise<{ briefId: string }> {
   divider("persist_brief_output");
   logLine("persist_brief_output: input prepared", {
     selectedClusters: input.selectedClusters.length,
     storySummaries: input.storySummaries.length,
-    briefParagraphs: input.briefParagraphs.length,
+    briefSections: input.briefSections.length,
   });
-  if (input.storySummaries.length !== input.briefParagraphs.length) {
-    throw new Error("Brief paragraph count must match story summary count.");
+  if (input.storySummaries.length !== input.briefSections.length) {
+    throw new Error("Brief section count must match story summary count.");
   }
   const supabase = createSupabaseServiceClient();
   logLine("persist_brief_output: inserting brief row");
@@ -96,18 +96,18 @@ export async function persistBriefOutput(input: {
     storyIdByPosition.set(row.position, row.id);
   }
 
-  logLine("persist_brief_output: inserting brief paragraph rows", {
-    paragraphRows: input.briefParagraphs.length,
+  logLine("persist_brief_output: inserting brief section rows", {
+    sectionRows: input.briefSections.length,
   });
-  const { error: paragraphsError } = await supabase.from("brief_paragraphs").insert(
-    input.briefParagraphs.map((paragraph, index) => ({
+  const { error: sectionsError } = await supabase.from("brief_sections").insert(
+    input.briefSections.map((section, index) => ({
       brief_id: brief.id,
       story_id: storyIdByPosition.get(index + 1) as string,
       position: index + 1,
-      markdown: paragraph.markdown,
+      markdown: section.markdown,
     })),
   );
-  if (paragraphsError) throw new Error(paragraphsError.message);
+  if (sectionsError) throw new Error(sectionsError.message);
 
   const allSelectedSources = input.selectedClusters.flatMap((cluster) =>
     cluster.sourceKeys
@@ -147,7 +147,7 @@ export async function persistBriefOutput(input: {
   logLine("persist_brief_output: done", {
     briefId: brief.id,
     stories: input.storySummaries.length,
-    paragraphs: input.briefParagraphs.length,
+    sections: input.briefSections.length,
     storyArticleLinks: storyArticleRows.length,
   });
   return { briefId: brief.id };

@@ -28,7 +28,7 @@ function consoleRunMetadata(): Json {
     errors: [] as Json[],
     publishers: [] as Json[],
     articles: [] as Json[],
-    publish: { brief_paragraphs: [] as Json[] },
+    publish: { brief_sections: [] as Json[] },
   };
 }
 

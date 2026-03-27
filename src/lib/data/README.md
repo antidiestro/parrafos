@@ -4,7 +4,7 @@
 - Centralized query layer for read operations used by pages and scripts.
 
 ## Key Files
-- `briefs.ts`: latest published brief + ordered `brief_paragraphs`, each linked to a story summary and hydrated source metadata.
+- `briefs.ts`: latest published brief + ordered `brief_sections` (one markdown section per story), hydrated with linked stories and source metadata.
 - `publishers.ts`: list configured publishers.
 
 ## Contracts and Invariants
@@ -13,7 +13,7 @@
 - Sorting/default limits are part of the API contract:
   - briefs by `published_at`/`created_at`
   - publishers by `name`
-- `getLatestPublishedBriefWithStories` reads from `brief_paragraphs` for homepage paragraph order, then joins linked stories (`detail_markdown`) and `story_articles`/`articles` source metadata for source pills and modal source lists.
+- `getLatestPublishedBriefWithStories` reads from `brief_sections` for homepage section order, then joins linked stories (`detail_markdown`) and `story_articles`/`articles` source metadata for source pills and modal source lists.
 
 ## Common Changes
 - Add a new read model: create a new file in `data/` and keep output shape typed.

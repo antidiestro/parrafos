@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import type { LatestBriefBundle } from "@/lib/data/briefs";
 import { StoryMarkdown } from "@/components/story-markdown";
 
-type Paragraph = LatestBriefBundle["paragraphs"][number];
-type SourceRow = Paragraph["sources"][number];
+type Section = LatestBriefBundle["sections"][number];
+type SourceRow = Section["sources"][number];
 
 function sourcePrimaryUrl(source: SourceRow): string | null {
   const raw = source.source_url ?? source.canonical_url;
@@ -26,7 +26,7 @@ function domainKeyFromUrl(urlString: string): string | null {
 }
 
 function sourcesForDistinctDomainFavicons(
-  sources: Paragraph["sources"],
+  sources: Section["sources"],
   limit: number,
 ): SourceRow[] {
   const seenDomains = new Set<string>();
@@ -76,16 +76,13 @@ function SourceFavicon({
 }
 
 function SourcePill({
-  paragraph,
+  section,
   onClick,
 }: {
-  paragraph: Paragraph;
+  section: Section;
   onClick: () => void;
 }) {
-  const displaySources = sourcesForDistinctDomainFavicons(
-    paragraph.sources,
-    3,
-  );
+  const displaySources = sourcesForDistinctDomainFavicons(section.sources, 3);
 
   return (
     <button
@@ -104,50 +101,49 @@ function SourcePill({
         ))}
       </span>
       <span>
-        {paragraph.sources.length}{" "}
-        {paragraph.sources.length === 1 ? "fuente" : "fuentes"}
+        {section.sources.length}{" "}
+        {section.sources.length === 1 ? "fuente" : "fuentes"}
       </span>
     </button>
   );
 }
 
 export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
-  const [selectedParagraphId, setSelectedParagraphId] = useState<string | null>(
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
   );
-  const selectedParagraph = useMemo(
+  const selectedSection = useMemo(
     () =>
-      bundle.paragraphs.find(
-        (paragraph) => paragraph.id === selectedParagraphId,
-      ) ?? null,
-    [bundle.paragraphs, selectedParagraphId],
+      bundle.sections.find((section) => section.id === selectedSectionId) ??
+      null,
+    [bundle.sections, selectedSectionId],
   );
 
   return (
     <>
       <div className="space-y-10">
-        {bundle.paragraphs.length === 0 ? (
-          <p className="text-zinc-600">This brief has no story blocks yet.</p>
+        {bundle.sections.length === 0 ? (
+          <p className="text-zinc-600">This brief has no sections yet.</p>
         ) : (
-          bundle.paragraphs.map((paragraph) => (
-            <section key={paragraph.id}>
+          bundle.sections.map((section) => (
+            <section key={section.id}>
               <button
                 type="button"
-                onClick={() => setSelectedParagraphId(paragraph.id)}
+                onClick={() => setSelectedSectionId(section.id)}
                 className="w-full text-left"
               >
-                <StoryMarkdown markdown={paragraph.markdown} />
+                <StoryMarkdown markdown={section.markdown} />
               </button>
               <SourcePill
-                paragraph={paragraph}
-                onClick={() => setSelectedParagraphId(paragraph.id)}
+                section={section}
+                onClick={() => setSelectedSectionId(section.id)}
               />
             </section>
           ))
         )}
       </div>
 
-      {selectedParagraph ? (
+      {selectedSection ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
@@ -157,11 +153,11 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <h3 className="text-lg font-semibold text-zinc-900">
-                Story {selectedParagraph.position}
+                Story {selectedSection.position}
               </h3>
               <button
                 type="button"
-                onClick={() => setSelectedParagraphId(null)}
+                onClick={() => setSelectedSectionId(null)}
                 className="rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50"
               >
                 Close
@@ -170,8 +166,8 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
 
             <StoryMarkdown
               markdown={
-                selectedParagraph.story.detail_markdown ??
-                selectedParagraph.story.markdown
+                selectedSection.story.detail_markdown ??
+                selectedSection.story.markdown
               }
             />
 
@@ -180,7 +176,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
                 Sources
               </h4>
               <ul className="space-y-2">
-                {selectedParagraph.sources.map((source) => {
+                {selectedSection.sources.map((source) => {
                   const url = source.source_url ?? source.canonical_url;
                   return (
                     <li

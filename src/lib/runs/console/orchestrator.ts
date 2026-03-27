@@ -7,7 +7,7 @@ import {
 import { divider, logLine } from "@/lib/runs/console/logging";
 import {
   clusterSources,
-  composeBriefParagraphs,
+  composeBriefSections,
   createConsoleRunRecord,
   discoverCandidates,
   extractBodies,
@@ -72,12 +72,12 @@ export async function runConsoleWorkflow() {
       selectedClusters,
       sourceByKey,
     });
-    const briefParagraphs = await composeBriefParagraphs(storySummaries);
+    const briefSections = await composeBriefSections(storySummaries);
     const published = await persistBriefOutput({
       selectedClusters,
       sourceByKey,
       storySummaries,
-      briefParagraphs,
+      briefSections,
     });
 
     const elapsedMs = Date.now() - startedAt;

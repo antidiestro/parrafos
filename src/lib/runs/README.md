@@ -2,7 +2,7 @@
 
 ## Purpose
 - **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds).
-- **Stages:** `stages/` implements each step (discovery, prefetch, cluster, select, extract, upsert, summaries, compose, persist, run records).
+- **Stages:** `stages/` implements each step (discovery, prefetch, cluster, select, extract, upsert, summaries, compose brief sections, persist, run records).
 - **Model config:** `constants.ts` — model IDs and recency windows used by orchestrator and stages.
 
 ## Key Files
@@ -10,6 +10,7 @@
 - `console/orchestrator.ts`: wires stages and run row lifecycle.
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits.
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
+- `stages/compose-brief-sections.ts`: LLM step that emits one markdown section per story; structured output uses a `sections` array.
 
 ## Run lifecycle
 - The console workflow inserts a `runs` row with `status = running`, then updates to `completed` or `failed` when the pipeline finishes.

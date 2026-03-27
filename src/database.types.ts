@@ -77,7 +77,7 @@ export type Database = {
           },
         ]
       }
-      brief_paragraphs: {
+      brief_sections: {
         Row: {
           brief_id: string
           created_at: string
@@ -107,14 +107,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "brief_paragraphs_brief_id_fkey"
+            foreignKeyName: "brief_sections_brief_id_fkey"
             columns: ["brief_id"]
             isOneToOne: false
             referencedRelation: "briefs"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "brief_paragraphs_story_id_fkey"
+            foreignKeyName: "brief_sections_story_id_fkey"
             columns: ["story_id"]
             isOneToOne: false
             referencedRelation: "stories"

@@ -75,18 +75,18 @@ export const storyDetailResponseJsonSchema = {
   required: ["detail_markdown"],
 };
 
-export const briefParagraphSchema = z.object({
+export const briefSectionSchema = z.object({
   markdown: z.string().trim().min(10),
 });
 
-export const finalBriefParagraphsSchema = z.object({
-  paragraphs: z.array(briefParagraphSchema).min(1),
+export const finalBriefSectionsSchema = z.object({
+  sections: z.array(briefSectionSchema).min(1),
 });
 
-export const finalBriefParagraphsResponseJsonSchema = {
+export const finalBriefSectionsResponseJsonSchema = {
   type: "object",
   properties: {
-    paragraphs: {
+    sections: {
       type: "array",
       minItems: 1,
       items: {
@@ -98,7 +98,7 @@ export const finalBriefParagraphsResponseJsonSchema = {
       },
     },
   },
-  required: ["paragraphs"],
+  required: ["sections"],
 };
 
 export const OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION =

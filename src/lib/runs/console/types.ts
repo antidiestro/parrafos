@@ -31,7 +31,7 @@ export type StorySummaryRow = {
   detailMarkdown: string;
 };
 
-export type BriefParagraphRow = {
+export type BriefSectionRow = {
   clusterId: string;
   markdown: string;
 };

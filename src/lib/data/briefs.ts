@@ -3,14 +3,14 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type BriefRow = Database["public"]["Tables"]["briefs"]["Row"];
 type StoryRow = Database["public"]["Tables"]["stories"]["Row"];
-type BriefParagraphRow =
-  Database["public"]["Tables"]["brief_paragraphs"]["Row"];
+type BriefSectionRow =
+  Database["public"]["Tables"]["brief_sections"]["Row"];
 type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
 
 export type LatestBriefBundle = {
   brief: BriefRow;
-  paragraphs: Array<
-    BriefParagraphRow & {
+  sections: Array<
+    BriefSectionRow & {
       story: StoryRow;
       sources: Array<
         Pick<ArticleRow, "id" | "title" | "canonical_url" | "source_url"> & {
@@ -40,22 +40,22 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
     return null;
   }
 
-  const { data: paragraphs, error: paragraphsError } = await supabase
-    .from("brief_paragraphs")
+  const { data: sectionRowsRaw, error: sectionsError } = await supabase
+    .from("brief_sections")
     .select("id,brief_id,story_id,position,markdown,created_at,updated_at")
     .eq("brief_id", brief.id)
     .order("position", { ascending: true });
 
-  if (paragraphsError) {
-    throw new Error(paragraphsError.message);
+  if (sectionsError) {
+    throw new Error(sectionsError.message);
   }
 
-  const paragraphRows = paragraphs ?? [];
-  if (paragraphRows.length === 0) {
-    return { brief, paragraphs: [] };
+  const sectionRows = sectionRowsRaw ?? [];
+  if (sectionRows.length === 0) {
+    return { brief, sections: [] };
   }
 
-  const storyIds = paragraphRows.map((row) => row.story_id);
+  const storyIds = sectionRows.map((row) => row.story_id);
   const { data: stories, error: storiesError } = await supabase
     .from("stories")
     .select(
@@ -111,13 +111,13 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
     articleIdsByStoryId.set(row.story_id, existing);
   }
 
-  const hydratedParagraphs = paragraphRows
-    .map((paragraph) => {
-      const story = storyById.get(paragraph.story_id);
+  const hydratedSections = sectionRows
+    .map((section) => {
+      const story = storyById.get(section.story_id);
       if (!story) return null;
       const sourceRows =
         articleIdsByStoryId
-          .get(paragraph.story_id)
+          .get(section.story_id)
           ?.map((articleId) => articleById.get(articleId))
           .filter((article): article is NonNullable<typeof article> =>
             Boolean(article),
@@ -137,23 +137,23 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
             };
           }) ?? [];
       return {
-        ...paragraph,
+        ...section,
         story,
         sources: sourceRows,
       };
     })
     .filter(
       (
-        paragraph,
-      ): paragraph is BriefParagraphRow & {
+        section,
+      ): section is BriefSectionRow & {
         story: StoryRow;
         sources: Array<
           Pick<ArticleRow, "id" | "title" | "canonical_url" | "source_url"> & {
             favicon_url: string | null;
           }
         >;
-      } => Boolean(paragraph),
+      } => Boolean(section),
     );
 
-  return { brief, paragraphs: hydratedParagraphs };
+  return { brief, sections: hydratedSections };
 }

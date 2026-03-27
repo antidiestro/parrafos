@@ -40,7 +40,7 @@
 ## Verification
 - Execute `npm run generate-brief` with a valid `.env`.
 - Confirm process exits cleanly and run status transitions in DB.
-- Confirm expected publish outputs are persisted (`briefs`, `stories`, `brief_paragraphs`, `story_articles`).
+- Confirm expected publish outputs are persisted (`briefs`, `stories`, `brief_sections`, `story_articles`).
 
 ## Gotchas
 - This script assumes `.env` is loaded by package script (`dotenv -e .env -- ...`).

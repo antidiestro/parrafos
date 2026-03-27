@@ -22,7 +22,7 @@
 ## Current ingestion / editorial shape
 - **`runs`**: workflow console creates a row per execution (`status`: `running` → `completed` | `failed`), with `extract_model`, `cluster_model`, `relevance_model`, and optional `metadata` JSON. Legacy normalized progress tables and `run_stage` enums were removed in `20260327200000_prune_legacy_run_workflow.sql`.
 - **`articles`**: one row per `(publisher_id, canonical_url)`; stores `source_url`, `extraction_model`, `clustering_model`, `relevance_selection_model`, body text, and `run_id` for the extracting run.
-- **Editorial**: `briefs`, `stories` (`detail_markdown`), ordered **`brief_paragraphs`**, and **`story_articles`** linking stories to source articles.
+- **Editorial**: `briefs`, `stories` (`detail_markdown`), ordered **`brief_sections`** (final markdown per story in the brief), and **`story_articles`** linking stories to source articles.
 
 ## Verification
 - Apply migration to target environment.
