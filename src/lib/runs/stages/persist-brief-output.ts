@@ -1,9 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { divider, logLine } from "@/lib/runs/console/logging";
-import {
-  writeLatestRunJson,
-  writeLatestRunStageStatus,
-} from "@/lib/runs/console/run-artifacts";
 import type {
   BriefParagraphRow,
   CandidateSource,
@@ -54,7 +50,6 @@ export async function persistBriefOutput(input: {
   storySummaries: StorySummaryRow[];
   briefParagraphs: BriefParagraphRow[];
 }): Promise<{ briefId: string }> {
-  const stageStartedAt = Date.now();
   divider("persist_brief_output");
   logLine("persist_brief_output: input prepared", {
     selectedClusters: input.selectedClusters.length,
@@ -150,22 +145,6 @@ export async function persistBriefOutput(input: {
   }
 
   logLine("persist_brief_output: done", {
-    briefId: brief.id,
-    stories: input.storySummaries.length,
-    paragraphs: input.briefParagraphs.length,
-    storyArticleLinks: storyArticleRows.length,
-  });
-  await writeLatestRunJson("persist_brief_output/publish-result.json", {
-    briefId: brief.id,
-    stories: input.storySummaries.length,
-    paragraphs: input.briefParagraphs.length,
-    storyArticleLinks: storyArticleRows.length,
-  });
-  await writeLatestRunStageStatus("persist_brief_output", {
-    stage: "persist_brief_output",
-    finishedAt: new Date().toISOString(),
-    ok: true,
-    durationMs: Date.now() - stageStartedAt,
     briefId: brief.id,
     stories: input.storySummaries.length,
     paragraphs: input.briefParagraphs.length,

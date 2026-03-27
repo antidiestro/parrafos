@@ -10,10 +10,6 @@ import {
   relevantStoriesSchema,
 } from "@/lib/runs/console/pipeline-constants";
 import { divider, logLine } from "@/lib/runs/console/logging";
-import {
-  writeLatestRunJson,
-  writeLatestRunStageStatus,
-} from "@/lib/runs/console/run-artifacts";
 import type {
   CandidateSource,
   ClusterDraft,
@@ -24,7 +20,6 @@ export async function selectClusters(input: {
   clusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
 }): Promise<ClusterDraft[]> {
-  const stageStartedAt = Date.now();
   divider("select_clusters");
   logLine("select_clusters: input prepared", {
     eligibleClusters: input.clusters.length,
@@ -135,18 +130,6 @@ export async function selectClusters(input: {
   logLine("select_clusters: done", {
     selectedClusters: selected.length,
     selectedSources: selected.reduce((acc, row) => acc + row.sourceKeys.length, 0),
-  });
-  await writeLatestRunJson("select_clusters/model-response.json", generated);
-  await writeLatestRunJson("select_clusters/selected_clusters.json", selected);
-  await writeLatestRunStageStatus("select_clusters", {
-    stage: "select_clusters",
-    finishedAt: new Date().toISOString(),
-    ok: true,
-    durationMs: Date.now() - stageStartedAt,
-    eligibleClusters: input.clusters.length,
-    selectedClusters: selected.length,
-    selectedSources: selected.reduce((acc, row) => acc + row.sourceKeys.length, 0),
-    selectedReturnedFromModel: generated.selected_clusters.length,
   });
   return selected;
 }

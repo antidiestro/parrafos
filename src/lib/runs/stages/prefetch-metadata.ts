@@ -5,10 +5,6 @@ import {
 } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { divider, logLine } from "@/lib/runs/console/logging";
-import {
-  writeLatestRunJson,
-  writeLatestRunStageStatus,
-} from "@/lib/runs/console/run-artifacts";
 import type {
   CandidateSource,
   PrefetchedArticle,
@@ -109,7 +105,6 @@ export async function prefetchMetadata(input: {
   prefetchedByKey: Map<string, PrefetchedArticle>;
   metadataReadyRecent: CandidateSource[];
 }> {
-  const stageStartedAt = Date.now();
   divider("prefetch_metadata");
   const canonicalUrls = input.discovered.map((c) => c.canonicalUrl);
   const existingByCanonical = await loadExistingMetadataByCanonical(canonicalUrls);
@@ -208,27 +203,6 @@ export async function prefetchMetadata(input: {
   }
 
   logLine("prefetch_metadata: done", {
-    metadataReadyRecent: metadataReadyRecent.length,
-    discarded: input.discovered.length - metadataReadyRecent.length,
-  });
-
-  await writeLatestRunJson(
-    "prefetch_metadata/metadata_ready_recent.json",
-    metadataReadyRecent,
-  );
-  await writeLatestRunJson("prefetch_metadata/prefetch_stats.json", {
-    discovered: input.discovered.length,
-    metadataReadyRecent: metadataReadyRecent.length,
-    discarded: input.discovered.length - metadataReadyRecent.length,
-    prefetchMapEntries: prefetchedByKey.size,
-    matchedExistingCanonicalUrls: existingByCanonical.size,
-  });
-  await writeLatestRunStageStatus("prefetch_metadata", {
-    stage: "prefetch_metadata",
-    finishedAt: new Date().toISOString(),
-    ok: true,
-    durationMs: Date.now() - stageStartedAt,
-    discovered: input.discovered.length,
     metadataReadyRecent: metadataReadyRecent.length,
     discarded: input.discovered.length - metadataReadyRecent.length,
   });
