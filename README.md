@@ -36,6 +36,29 @@ npm run dev
 npm run dev:all
 ```
 
+### Deploy to Netlify
+
+The repo includes [`netlify.toml`](./netlify.toml) (`npm run build`, publish `.next`). Netlify’s **Next.js runtime** (OpenNext) provisions functions for SSR so the homepage can keep using the server-side Supabase service client.
+
+**One-time CLI setup** (from the repo root):
+
+```bash
+npm install
+npx netlify login
+npx netlify init   # link or create a site; pick this repo as the base directory if asked
+```
+
+In the [Netlify UI](https://app.netlify.com/) → your site → **Site configuration → Environment variables**, add at least **`SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same values as in `.env`). These are required for the public homepage to load the latest published brief.
+
+**Deploy from your machine**:
+
+```bash
+npm run deploy:netlify         # production (live URL)
+npm run deploy:netlify:draft   # draft deploy (shareable preview URL)
+```
+
+Alternatively, connect the Git repository in Netlify and use **Builds**; the same `netlify.toml` applies.
+
 ### 2. Link the CLI to your hosted project
 
 One-time per machine (uses a [personal access token](https://supabase.com/dashboard/account/tokens)):
@@ -145,7 +168,7 @@ This is a lightweight map of where most changes should go:
 
 | Path | What it is |
 | ---- | ---------- |
-| `src/app/` | Next.js routes and handlers (public homepage and API routes) |
+| `src/app/` | Next.js App Router (public homepage) |
 | `src/lib/` | Shared server-side domain logic (data access, runs, extract, integrations) |
 | `src/lib/data/` | Query helpers used by pages and workflow observability (`briefs`, `publishers`, `runs`) |
 | `src/lib/runs/` | Console brief pipeline: `console/` orchestration, `stages/`, shared `constants.ts` |

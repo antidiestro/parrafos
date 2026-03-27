@@ -5,7 +5,40 @@ import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
 
 export const dynamic = "force-dynamic";
 
+/** Wall-clock interpretation for homepage copy (Chile). */
+const BRIEF_DISPLAY_TIMEZONE = "America/Santiago";
+
 type DayPart = "madrugada" | "mañana" | "tarde" | "noche";
+
+function zonedYmdHour(d: Date, timeZone: string) {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(d);
+  const pick = (type: Intl.DateTimeFormatPart["type"]) =>
+    parts.find((p) => p.type === type)?.value;
+  const year = Number(pick("year"));
+  const month = Number(pick("month"));
+  const day = Number(pick("day"));
+  let hour = Number(pick("hour"));
+  if ([year, month, day, hour].some((n) => Number.isNaN(n))) {
+    return null;
+  }
+  if (hour === 24) hour = 0;
+  return { year, month, day, hour };
+}
+
+function sameCalendarDayInTimeZone(a: Date, b: Date, timeZone: string) {
+  const za = zonedYmdHour(a, timeZone);
+  const zb = zonedYmdHour(b, timeZone);
+  if (!za || !zb) return false;
+  return za.year === zb.year && za.month === zb.month && za.day === zb.day;
+}
 
 function dayPartFromHour(hour: number): DayPart {
   if (hour >= 0 && hour < 5) return "madrugada";
@@ -18,10 +51,13 @@ function dayPartFromHour(hour: number): DayPart {
 function dayPartPhraseEs(
   iso: string,
   sameCalendarDayAsNow: boolean,
+  timeZone: string,
 ): string | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const part = dayPartFromHour(d.getHours());
+  const z = zonedYmdHour(d, timeZone);
+  if (!z) return null;
+  const part = dayPartFromHour(z.hour);
 
   if (sameCalendarDayAsNow) {
     if (part === "madrugada") return "de esta madrugada";
@@ -31,6 +67,7 @@ function dayPartPhraseEs(
   }
 
   const datePart = new Intl.DateTimeFormat("es", {
+    timeZone,
     day: "numeric",
     month: "long",
   }).format(d);
@@ -46,11 +83,8 @@ function formatBriefGreetingEs(iso: string | null | undefined): string | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  const dayPart = dayPartPhraseEs(iso, sameDay);
+  const sameDay = sameCalendarDayInTimeZone(d, now, BRIEF_DISPLAY_TIMEZONE);
+  const dayPart = dayPartPhraseEs(iso, sameDay, BRIEF_DISPLAY_TIMEZONE);
   if (!dayPart) return null;
   return `Hola. Aquí tienes los Párrafos ${dayPart}.`;
 }
@@ -63,6 +97,7 @@ function formatBriefUpdatedAtLineEs(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   const time = new Intl.DateTimeFormat("es", {
+    timeZone: BRIEF_DISPLAY_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

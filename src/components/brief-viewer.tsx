@@ -1,8 +1,8 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { useMemo, useState } from "react";
 import type { LatestBriefBundle } from "@/lib/data/briefs";
+import { SourceFavicon, StorySidebar } from "@/components/story-sidebar";
 import { StoryMarkdown } from "@/components/story-markdown";
 
 type Section = LatestBriefBundle["sections"][number];
@@ -43,38 +43,6 @@ function sourcesForDistinctDomainFavicons(
   return out;
 }
 
-function SourceFavicon({
-  faviconUrl,
-  title,
-  className,
-}: {
-  faviconUrl: string | null;
-  title: string;
-  className?: string;
-}) {
-  const [broken, setBroken] = useState(false);
-  if (!faviconUrl || broken) {
-    return (
-      <span
-        className={`inline-flex items-center justify-center rounded-full bg-zinc-200 text-zinc-600 grayscale ${className ?? "h-5 w-5 text-xs"}`}
-        aria-hidden="true"
-      >
-        🌐
-      </span>
-    );
-  }
-  return (
-    // biome-ignore lint/performance/noImgElement: favicon chips need lightweight raw img tags.
-    <img
-      src={faviconUrl}
-      alt=""
-      title={title}
-      className={`grayscale ${className ?? "h-5 w-5 rounded-full"}`}
-      onError={() => setBroken(true)}
-    />
-  );
-}
-
 function SourcePill({
   section,
   onClick,
@@ -88,19 +56,27 @@ function SourcePill({
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 inline-flex items-center gap-2 p-0 text-xs font-sans text-zinc-700"
+      className="group mt-3 inline-flex cursor-pointer items-center gap-2 p-0 text-xs font-sans text-zinc-700"
     >
-      <span className="inline-flex -space-x-1.5">
+      <span className="inline-flex items-center gap-1 [&_.relative>:first-child]:opacity-75 [&_.relative>:first-child]:transition-[filter,opacity] [&_.relative>:first-child]:duration-150 group-hover:[&_.relative>:first-child]:opacity-100 group-hover:[&_.relative>:first-child]:grayscale-0">
         {displaySources.map((source) => (
-          <SourceFavicon
+          <span
             key={source.id}
-            faviconUrl={source.favicon_url}
-            title={source.title ?? source.source_url ?? source.canonical_url}
-            className="h-5 w-5 rounded-full border border-[var(--paper)] bg-[var(--paper)]"
-          />
+            className="relative inline-block h-5 w-5 shrink-0"
+          >
+            <SourceFavicon
+              faviconUrl={source.favicon_url}
+              title={source.title ?? source.source_url ?? source.canonical_url}
+              className="h-5 w-5 rounded-full mix-blend-multiply object-contain"
+            />
+            <span
+              className="pointer-events-none absolute inset-0 z-10 rounded-full ring-1 ring-inset ring-zinc-900/15"
+              aria-hidden
+            />
+          </span>
         ))}
       </span>
-      <span>
+      <span className="transition-colors group-hover:text-black">
         {section.sources.length}{" "}
         {section.sources.length === 1 ? "fuente" : "fuentes"}
       </span>
@@ -127,13 +103,9 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
         ) : (
           bundle.sections.map((section) => (
             <section key={section.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedSectionId(section.id)}
-                className="w-full text-left"
-              >
+              <div className="w-full text-left">
                 <StoryMarkdown markdown={section.markdown} />
-              </button>
+              </div>
               <SourcePill
                 section={section}
                 onClick={() => setSelectedSectionId(section.id)}
@@ -144,65 +116,11 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
       </div>
 
       {selectedSection ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Story details"
-        >
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h3 className="text-lg font-semibold text-zinc-900">
-                Story {selectedSection.position}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setSelectedSectionId(null)}
-                className="rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <StoryMarkdown
-              markdown={
-                selectedSection.story.detail_markdown ??
-                selectedSection.story.markdown
-              }
-            />
-
-            <div className="mt-8 border-t border-zinc-200 pt-4">
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                Sources
-              </h4>
-              <ul className="space-y-2">
-                {selectedSection.sources.map((source) => {
-                  const url = source.source_url ?? source.canonical_url;
-                  return (
-                    <li
-                      key={source.id}
-                      className="flex items-start gap-2 text-sm text-zinc-700"
-                    >
-                      <SourceFavicon
-                        faviconUrl={source.favicon_url}
-                        title={source.title ?? url}
-                        className="mt-0.5 h-4 w-4 rounded-full"
-                      />
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline"
-                      >
-                        {source.title?.trim() || url}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </div>
-        </div>
+        <StorySidebar
+          key={selectedSection.id}
+          sources={selectedSection.sources}
+          onClose={() => setSelectedSectionId(null)}
+        />
       ) : null}
     </>
   );

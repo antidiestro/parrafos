@@ -7,16 +7,20 @@ type BriefSectionRow =
   Database["public"]["Tables"]["brief_sections"]["Row"];
 type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
 
+export type BriefSectionSourceRow = Pick<
+  ArticleRow,
+  "id" | "title" | "canonical_url" | "source_url" | "publisher_id"
+> & {
+  favicon_url: string | null;
+  publisher_name: string;
+};
+
 export type LatestBriefBundle = {
   brief: BriefRow;
   sections: Array<
     BriefSectionRow & {
       story: StoryRow;
-      sources: Array<
-        Pick<ArticleRow, "id" | "title" | "canonical_url" | "source_url"> & {
-          favicon_url: string | null;
-        }
-      >;
+      sources: BriefSectionSourceRow[];
     }
   >;
 };
@@ -79,12 +83,15 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
   );
   const articleById = new Map<
     string,
-    Pick<ArticleRow, "id" | "title" | "canonical_url" | "source_url">
+    Pick<
+      ArticleRow,
+      "id" | "title" | "canonical_url" | "source_url" | "publisher_id"
+    >
   >();
   if (articleIds.length > 0) {
     const { data: articles, error: articlesError } = await supabase
       .from("articles")
-      .select("id,title,canonical_url,source_url")
+      .select("id,title,canonical_url,source_url,publisher_id")
       .in("id", articleIds);
     if (articlesError) {
       throw new Error(articlesError.message);
@@ -95,7 +102,29 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
         title: article.title,
         canonical_url: article.canonical_url,
         source_url: article.source_url,
+        publisher_id: article.publisher_id,
       });
+    }
+  }
+
+  const publisherIds = Array.from(
+    new Set(
+      [...articleById.values()]
+        .map((a) => a.publisher_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const publisherNameById = new Map<string, string>();
+  if (publisherIds.length > 0) {
+    const { data: publishers, error: publishersError } = await supabase
+      .from("publishers")
+      .select("id,name")
+      .in("id", publisherIds);
+    if (publishersError) {
+      throw new Error(publishersError.message);
+    }
+    for (const row of publishers ?? []) {
+      publisherNameById.set(row.id, row.name);
     }
   }
 
@@ -125,15 +154,22 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
           .map((article) => {
             const url = article.source_url ?? article.canonical_url;
             let faviconUrl: string | null = null;
+            let hostnameFallback = "";
             try {
               const hostname = new URL(url).hostname;
+              hostnameFallback = hostname.startsWith("www.")
+                ? hostname.slice(4)
+                : hostname;
               faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
             } catch {
               faviconUrl = null;
             }
+            const publisherName =
+              publisherNameById.get(article.publisher_id) ?? hostnameFallback;
             return {
               ...article,
               favicon_url: faviconUrl,
+              publisher_name: publisherName,
             };
           }) ?? [];
       return {
@@ -147,11 +183,7 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
         section,
       ): section is BriefSectionRow & {
         story: StoryRow;
-        sources: Array<
-          Pick<ArticleRow, "id" | "title" | "canonical_url" | "source_url"> & {
-            favicon_url: string | null;
-          }
-        >;
+        sources: BriefSectionSourceRow[];
       } => Boolean(section),
     );
 

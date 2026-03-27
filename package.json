@@ -10,6 +10,8 @@
     "dev:all": "npm run dev",
     "build": "next build",
     "start": "next start",
+    "deploy:netlify": "netlify deploy --build --prod",
+    "deploy:netlify:draft": "netlify deploy --build",
     "lint": "eslint",
     "generate-brief": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
@@ -37,6 +39,7 @@
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.1",
+    "netlify-cli": "^24.8.1",
     "supabase": ">=1.8.1",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
