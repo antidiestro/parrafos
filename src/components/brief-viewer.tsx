@@ -6,6 +6,42 @@ import type { LatestBriefBundle } from "@/lib/data/briefs";
 import { StoryMarkdown } from "@/components/story-markdown";
 
 type Paragraph = LatestBriefBundle["paragraphs"][number];
+type SourceRow = Paragraph["sources"][number];
+
+function sourcePrimaryUrl(source: SourceRow): string | null {
+  const raw = source.source_url ?? source.canonical_url;
+  if (!raw?.trim()) return null;
+  return raw.trim();
+}
+
+/** Hostname without www., for grouping sources by domain. */
+function domainKeyFromUrl(urlString: string): string | null {
+  try {
+    const host = new URL(urlString).hostname.toLowerCase();
+    if (!host) return null;
+    return host.startsWith("www.") ? host.slice(4) : host;
+  } catch {
+    return null;
+  }
+}
+
+function sourcesForDistinctDomainFavicons(
+  sources: Paragraph["sources"],
+  limit: number,
+): SourceRow[] {
+  const seenDomains = new Set<string>();
+  const out: SourceRow[] = [];
+  for (const source of sources) {
+    const url = sourcePrimaryUrl(source);
+    const domain = url ? domainKeyFromUrl(url) : null;
+    const dedupeKey = domain ?? `__row:${source.id}`;
+    if (seenDomains.has(dedupeKey)) continue;
+    seenDomains.add(dedupeKey);
+    out.push(source);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 function SourceFavicon({
   faviconUrl,
@@ -20,7 +56,7 @@ function SourceFavicon({
   if (!faviconUrl || broken) {
     return (
       <span
-        className={`inline-flex items-center justify-center rounded-full bg-zinc-200 text-zinc-600 ${className ?? "h-5 w-5 text-xs"}`}
+        className={`inline-flex items-center justify-center rounded-full bg-zinc-200 text-zinc-600 grayscale ${className ?? "h-5 w-5 text-xs"}`}
         aria-hidden="true"
       >
         🌐
@@ -33,7 +69,7 @@ function SourceFavicon({
       src={faviconUrl}
       alt=""
       title={title}
-      className={className ?? "h-5 w-5 rounded-full"}
+      className={`grayscale ${className ?? "h-5 w-5 rounded-full"}`}
       onError={() => setBroken(true)}
     />
   );
@@ -46,17 +82,16 @@ function SourcePill({
   paragraph: Paragraph;
   onClick: () => void;
 }) {
-  const displaySources = paragraph.sources.slice(0, 3);
-  const remaining = Math.max(
-    paragraph.sources.length - displaySources.length,
-    0,
+  const displaySources = sourcesForDistinctDomainFavicons(
+    paragraph.sources,
+    3,
   );
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 inline-flex items-center gap-2 rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-50"
+      className="mt-3 inline-flex items-center gap-2 p-0 text-xs font-sans text-zinc-700"
     >
       <span className="inline-flex -space-x-1.5">
         {displaySources.map((source) => (
@@ -64,14 +99,13 @@ function SourcePill({
             key={source.id}
             faviconUrl={source.favicon_url}
             title={source.title ?? source.source_url ?? source.canonical_url}
-            className="h-5 w-5 rounded-full border border-white bg-white"
+            className="h-5 w-5 rounded-full border border-[var(--paper)] bg-[var(--paper)]"
           />
         ))}
       </span>
       <span>
-        {paragraph.sources.length} source
-        {paragraph.sources.length === 1 ? "" : "s"}
-        {remaining > 0 ? ` (+${remaining})` : ""}
+        {paragraph.sources.length}{" "}
+        {paragraph.sources.length === 1 ? "fuente" : "fuentes"}
       </span>
     </button>
   );
@@ -96,10 +130,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
           <p className="text-zinc-600">This brief has no story blocks yet.</p>
         ) : (
           bundle.paragraphs.map((paragraph) => (
-            <section
-              key={paragraph.id}
-              className="border-l-2 border-zinc-200 pl-6"
-            >
+            <section key={paragraph.id}>
               <button
                 type="button"
                 onClick={() => setSelectedParagraphId(paragraph.id)}

@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
+import { STIX_Two_Text } from "next/font/google";
 import "./globals.css";
+
+const stixTwoText = STIX_Two_Text({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -12,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={stixTwoText.className}>
       <body>{children}</body>
     </html>
   );

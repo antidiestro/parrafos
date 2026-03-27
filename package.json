@@ -15,6 +15,7 @@
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
   },
   "dependencies": {
+    "@fontsource/libertinus-serif": "^5.2.1",
     "@google/genai": "^1.46.0",
     "@supabase/supabase-js": "^2.49.1",
     "cheerio": "^1.2.0",
