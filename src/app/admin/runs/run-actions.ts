@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/auth/require-admin";
 import {
+  regenerateBriefParagraphsForRun,
+  regenerateStorySummariesForRun,
   retryBriefGenerationForFailedRun,
   retryFailedExtractionsForFailedRun,
 } from "@/lib/runs/process";
@@ -59,6 +61,38 @@ export async function retryBriefGenerationAction(
   revalidatePath(`/admin/runs/${runId}`);
   revalidatePath("/");
   return { success: "Brief published; run marked completed." };
+}
+
+export async function regenerateStorySummariesAction(
+  runId: string,
+): Promise<RunActionState> {
+  await requireAdminSession();
+  try {
+    await regenerateStorySummariesForRun(runId);
+  } catch (error) {
+    return { error: errorToMessage(error) };
+  }
+
+  revalidatePath("/admin/runs");
+  revalidatePath(`/admin/runs/${runId}`);
+  revalidatePath("/");
+  return { success: "Story summaries regenerated." };
+}
+
+export async function regenerateBriefParagraphsAction(
+  runId: string,
+): Promise<RunActionState> {
+  await requireAdminSession();
+  try {
+    await regenerateBriefParagraphsForRun(runId);
+  } catch (error) {
+    return { error: errorToMessage(error) };
+  }
+
+  revalidatePath("/admin/runs");
+  revalidatePath(`/admin/runs/${runId}`);
+  revalidatePath("/");
+  return { success: "Brief paragraphs regenerated and published." };
 }
 
 export async function retryFailedExtractionsAction(

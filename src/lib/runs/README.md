@@ -10,10 +10,15 @@
     - `processRun(runId)`
     - `retryBriefGenerationForFailedRun(runId)`
     - `retryFailedExtractionsForFailedRun(runId)`
+    - `regenerateStorySummariesForRun(runId)`
+    - `regenerateBriefParagraphsForRun(runId)`
 - `process/claim.ts`
   - pending-run claiming logic (`runs.pending` -> `runs.running`).
 - `process/retry-ops.ts`
   - failed-run retry flows for brief publication and extraction retries.
+  - manual publish-stage regeneration for terminal runs:
+    - `regenerateStorySummariesForRun(runId)`: reruns only `generate_story_summaries`, refreshes `metadata.publish.story_summaries`, and clears paragraph checkpoint.
+    - `regenerateBriefParagraphsForRun(runId)`: reruns `compose_brief_paragraphs`, then `persist_brief_output`, and marks the run `completed`.
 - `process/context.ts`
   - mutable in-memory workflow context for a single `processRun()` execution.
 - `process/shared.ts`
@@ -82,11 +87,12 @@
 
 ## Data and Extraction Invariants
 - Candidate article URLs are canonicalized and deduplicated before fetch.
-- Candidate identification is capped at 15 URLs per publisher homepage before metadata prefetch.
+- Candidate identification is capped at 20 URLs per publisher homepage before metadata prefetch.
 - Candidate identification is deterministic (no LLM): homepage `<a href>` URLs are resolved/canonicalized and must have at least 3 pathname segments.
 - Article metadata validation is deterministic (no LLM): JSON-LD `NewsArticle`/`Article` is preferred; meta tags are only used when `article:published_time` exists.
 - All identified candidates go through a deterministic metadata prefetch stage before clustering.
 - Metadata prefetch first checks `articles` for an existing `(publisher_id, canonical_url)` match derived from the identified URL; when found, it reuses persisted metadata (`canonical_url`, `title`, `published_at`, `source_url`) and skips live URL fetch.
+- Metadata prefetch normalizes timezone-less publish timestamps with `RUN_PUBLISHED_AT_FALLBACK_TIMEZONE` (default `America/Santiago`), then keeps only candidates published in the last 24 hours for clustering; older/missing-date candidates are marked `not_selected_for_extraction`.
 - Candidates missing both valid JSON-LD and required meta fallback are discarded before clustering.
 - Body text extraction still uses LLM parsing on cleaned article text.
 - Identified candidates are clustered into stories and persisted in `run_story_clusters` + `run_story_cluster_sources`.
@@ -120,9 +126,12 @@
   - `persist_brief_output`: writes `briefs`, `stories`, `brief_paragraphs`, and `story_articles`.
 - Story summaries and brief paragraphs are generated in Spanish only.
 - Story summaries and brief paragraphs use a skeptical but balanced editorial tone: they may flag source bias and potential official agendas while avoiding conspiratorial framing.
-- Story summaries use four sections (`Punto clave`, `Contexto`, `Detalles`, `Implicaciones`) and intentionally omit inline citations and source-list sections.
+- Story summaries use a sectioned Markdown format with bold section labels and bullet points; length is variable and each summary includes inline source links generated from the selected cluster sources.
 - Publish-stage text normalizes common HTML/numeric entities back into UTF-8 characters before persistence (helps preserve Spanish accents/diacritics).
 - Failed brief retries restart from the failed publish sub-stage when required checkpoints are available.
+- Manual regenerate controls are terminal-run only (`failed`, `completed`, `cancelled`) to avoid racing active worker execution:
+  - Story-summary regeneration does not auto-run paragraph composition/persistence.
+  - Brief-paragraph regeneration requires an existing story-summary checkpoint and persists output immediately.
 - `discover_candidates` processes publishers in parallel (one concurrent task per configured publisher host) so homepage fetch and deterministic candidate discovery run simultaneously across sites.
 - Bounded concurrency is controlled with `RUN_EXTRACT_CONCURRENCY` (default `5`, minimum `1`, max `20`) for metadata prefetch; prefetch scheduling is host-aware (global cap + per-host isolation, currently 1 in-flight request per host) to prevent single-host contention from dominating the worker pool; body-text extraction calls are intentionally sequential.
 - Run orchestration currently uses no fetch retries (`retries: 0`) for both homepage and article requests.

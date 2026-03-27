@@ -2,6 +2,9 @@ import { extractArticleMetadata } from "@/lib/extract/article-candidates";
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
 import {
+  RUN_RECENCY_WINDOW_MEDIUM_HOURS,
+} from "@/lib/runs/constants";
+import {
   completeRunStage,
   startRunStage,
 } from "@/lib/runs/persistence/stages-repo";
@@ -35,6 +38,19 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
     chunks.push(items.slice(index, index + chunkSize));
   }
   return chunks;
+}
+
+function isPublishedWithinHours(
+  publishedAt: string | null,
+  nowMs: number,
+  windowHours: number,
+): boolean {
+  if (!publishedAt) return false;
+  const ts = +new Date(publishedAt);
+  if (!Number.isFinite(ts)) return false;
+  const delta = nowMs - ts;
+  if (delta < 0) return false;
+  return delta <= windowHours * 60 * 60 * 1000;
 }
 
 async function loadExistingArticleMetadataByCandidate(
@@ -295,17 +311,42 @@ export async function runPrefetchMetadataStage(
     },
   );
 
-  context.prefetchedByCandidateKey.clear();
+  const nowMs = Date.now();
+  const recentMetadataCandidates: PrefetchedArticle[] = [];
   for (const candidate of metadataReadyCandidates) {
     if (!candidate) continue;
+    if (
+      isPublishedWithinHours(
+        candidate.publishedAt,
+        nowMs,
+        RUN_RECENCY_WINDOW_MEDIUM_HOURS,
+      )
+    ) {
+      recentMetadataCandidates.push(candidate);
+      continue;
+    }
+
+    const articleProgress = metadata.articles.find(
+      (entry) =>
+        entry.publisher_id === candidate.publisherId && entry.url === candidate.url,
+    );
+    if (articleProgress) {
+      articleProgress.status = "not_selected_for_extraction";
+      articleProgress.error_message = candidate.publishedAt
+        ? `Discarded: published more than ${RUN_RECENCY_WINDOW_MEDIUM_HOURS}h ago before clustering.`
+        : "Discarded: missing valid published_at metadata before clustering.";
+    }
+  }
+  await updateRunProgress(runId, { metadata });
+
+  context.prefetchedByCandidateKey.clear();
+  for (const candidate of recentMetadataCandidates) {
     context.prefetchedByCandidateKey.set(
       `${candidate.publisherId}::${candidate.url}`,
       candidate,
     );
   }
-  context.identifiedCandidates = metadataReadyCandidates
-    .filter((candidate): candidate is PrefetchedArticle => Boolean(candidate))
-    .map((candidate) => ({
+  context.identifiedCandidates = recentMetadataCandidates.map((candidate) => ({
       publisherId: candidate.publisherId,
       publisherName: candidate.publisherName,
       url: candidate.url,

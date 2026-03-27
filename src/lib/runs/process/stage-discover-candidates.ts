@@ -106,7 +106,7 @@ export async function runDiscoverCandidatesStage(
               .map((c) => toCanonicalUrl(c.url, publisher.base_url))
               .filter((value): value is string => Boolean(value)),
           ),
-        ).slice(0, 15);
+        ).slice(0, 20);
 
         metadata.articles_found += normalizedUrls.length;
         if (publisherProgress) {

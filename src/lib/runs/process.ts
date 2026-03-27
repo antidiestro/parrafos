@@ -1,6 +1,8 @@
 import { claimNextPendingRun } from "@/lib/runs/process/claim";
 import { createProcessRunContext } from "@/lib/runs/process/context";
 import {
+  regenerateBriefParagraphsForRun,
+  regenerateStorySummariesForRun,
   retryBriefGenerationForFailedRun,
   retryFailedExtractionsForFailedRun,
 } from "@/lib/runs/process/retry-ops";
@@ -23,6 +25,8 @@ import { createInitialRunMetadata } from "@/lib/runs/progress";
 
 export {
   claimNextPendingRun,
+  regenerateBriefParagraphsForRun,
+  regenerateStorySummariesForRun,
   retryBriefGenerationForFailedRun,
   retryFailedExtractionsForFailedRun,
 };

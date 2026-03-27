@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Json } from "@/database.types";
 import {
+  regenerateBriefParagraphsAction,
+  regenerateStorySummariesAction,
   retryBriefGenerationAction,
   retryFailedExtractionsAction,
 } from "@/app/admin/runs/run-actions";
@@ -263,6 +265,10 @@ export function RunDetailClient({ runId, initialData }: Props) {
   const [cancelPending, setCancelPending] = useState(false);
   const [retryExtractionPending, setRetryExtractionPending] = useState(false);
   const [retryBriefPending, setRetryBriefPending] = useState(false);
+  const [regenerateSummariesPending, setRegenerateSummariesPending] =
+    useState(false);
+  const [regenerateParagraphsPending, setRegenerateParagraphsPending] =
+    useState(false);
 
   useEffect(() => {
     if (isTerminalStatus(data.run.status)) return;
@@ -319,6 +325,11 @@ export function RunDetailClient({ runId, initialData }: Props) {
     data.run.status === "failed" && canRetryBriefGeneration(data);
   const canRetryExtractions =
     data.run.status === "failed" && canRetryFailedExtractions(data);
+  const canManuallyRegeneratePublishStages =
+    data.run.status === "completed" ||
+    data.run.status === "failed" ||
+    data.run.status === "cancelled";
+  const storySummaries = data.metadata.publish?.story_summaries ?? [];
   const briefRetryAvailability = useMemo(
     () => getBriefRetryAvailability(data),
     [data],
@@ -364,6 +375,17 @@ export function RunDetailClient({ runId, initialData }: Props) {
       ...(failedOrCancelled ? { [current]: true } : {}),
     }));
   }, [data.run.current_stage, data.run.status]);
+
+  const refreshRunData = async () => {
+    const response = await fetch(`/admin/runs/${runId}/data`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Refresh failed (${response.status})`);
+    }
+    setData((await response.json()) as RunDetailPayload);
+  };
 
   return (
     <div className="space-y-8">
@@ -501,6 +523,66 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 {retryExtractionPending
                   ? "Retrying extractions…"
                   : "Retry missing extractions"}
+              </button>
+            ) : null}
+            {canManuallyRegeneratePublishStages ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setRegenerateSummariesPending(true);
+                    setError(null);
+                    const result = await regenerateStorySummariesAction(runId);
+                    if (result?.error) {
+                      throw new Error(result.error);
+                    }
+                    await refreshRunData();
+                  } catch (regenerateError) {
+                    setError(
+                      regenerateError instanceof Error
+                        ? regenerateError.message
+                        : "Unable to regenerate story summaries.",
+                    );
+                  } finally {
+                    setRegenerateSummariesPending(false);
+                  }
+                }}
+                disabled={regenerateSummariesPending}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {regenerateSummariesPending
+                  ? "Regenerating summaries…"
+                  : "Regenerate story summaries"}
+              </button>
+            ) : null}
+            {canManuallyRegeneratePublishStages ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setRegenerateParagraphsPending(true);
+                    setError(null);
+                    const result = await regenerateBriefParagraphsAction(runId);
+                    if (result?.error) {
+                      throw new Error(result.error);
+                    }
+                    await refreshRunData();
+                  } catch (regenerateError) {
+                    setError(
+                      regenerateError instanceof Error
+                        ? regenerateError.message
+                        : "Unable to regenerate brief paragraphs.",
+                    );
+                  } finally {
+                    setRegenerateParagraphsPending(false);
+                  }
+                }}
+                disabled={regenerateParagraphsPending}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {regenerateParagraphsPending
+                  ? "Regenerating paragraphs…"
+                  : "Regenerate brief paragraphs"}
               </button>
             ) : null}
             <span className="text-xs text-zinc-500">Run ID: {data.run.id}</span>
@@ -761,6 +843,37 @@ export function RunDetailClient({ runId, initialData }: Props) {
                           <p className="leading-relaxed">
                             {briefRetryAvailability.headline}
                           </p>
+                          {canManuallyRegeneratePublishStages ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setRegenerateParagraphsPending(true);
+                                  setError(null);
+                                  const result =
+                                    await regenerateBriefParagraphsAction(runId);
+                                  if (result?.error) {
+                                    throw new Error(result.error);
+                                  }
+                                  await refreshRunData();
+                                } catch (regenerateError) {
+                                  setError(
+                                    regenerateError instanceof Error
+                                      ? regenerateError.message
+                                      : "Unable to regenerate brief paragraphs.",
+                                  );
+                                } finally {
+                                  setRegenerateParagraphsPending(false);
+                                }
+                              }}
+                              disabled={regenerateParagraphsPending}
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {regenerateParagraphsPending
+                                ? "Regenerating paragraphs…"
+                                : "Regenerate brief paragraphs"}
+                            </button>
+                          ) : null}
                           {canRetryBrief ? (
                             <button
                               type="button"
@@ -808,6 +921,88 @@ export function RunDetailClient({ runId, initialData }: Props) {
                           ) : null}
                         </div>
                       ) : null}
+                      {stage === "generate_story_summaries" ? (
+                        <div className="space-y-2">
+                          <p>
+                            Current summary checkpoints:{" "}
+                            <span className="font-semibold text-zinc-900">
+                              {storySummaries.length}
+                            </span>
+                          </p>
+                          {canManuallyRegeneratePublishStages ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setRegenerateSummariesPending(true);
+                                  setError(null);
+                                  const result =
+                                    await regenerateStorySummariesAction(runId);
+                                  if (result?.error) {
+                                    throw new Error(result.error);
+                                  }
+                                  await refreshRunData();
+                                } catch (regenerateError) {
+                                  setError(
+                                    regenerateError instanceof Error
+                                      ? regenerateError.message
+                                      : "Unable to regenerate story summaries.",
+                                  );
+                                } finally {
+                                  setRegenerateSummariesPending(false);
+                                }
+                              }}
+                              disabled={regenerateSummariesPending}
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {regenerateSummariesPending
+                                ? "Regenerating summaries…"
+                                : "Regenerate story summaries"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {stage === "compose_brief_paragraphs" ? (
+                        <div className="space-y-2">
+                          <p>
+                            Story summaries available:{" "}
+                            <span className="font-semibold text-zinc-900">
+                              {storySummaries.length}
+                            </span>
+                          </p>
+                          {canManuallyRegeneratePublishStages ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setRegenerateParagraphsPending(true);
+                                  setError(null);
+                                  const result =
+                                    await regenerateBriefParagraphsAction(runId);
+                                  if (result?.error) {
+                                    throw new Error(result.error);
+                                  }
+                                  await refreshRunData();
+                                } catch (regenerateError) {
+                                  setError(
+                                    regenerateError instanceof Error
+                                      ? regenerateError.message
+                                      : "Unable to regenerate brief paragraphs.",
+                                  );
+                                } finally {
+                                  setRegenerateParagraphsPending(false);
+                                }
+                              }}
+                              disabled={regenerateParagraphsPending}
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {regenerateParagraphsPending
+                                ? "Regenerating paragraphs…"
+                                : "Regenerate brief paragraphs"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </li>
@@ -821,6 +1016,38 @@ export function RunDetailClient({ runId, initialData }: Props) {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Detailed data
         </h2>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Story summary checkpoints ({storySummaries.length})
+          </h2>
+          <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            {storySummaries.length === 0 ? (
+              <p className="text-sm text-zinc-500">
+                No story summary checkpoints generated yet.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {storySummaries.map((summary) => (
+                  <article
+                    key={summary.cluster_id}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"
+                  >
+                    <h3 className="text-sm font-semibold text-zinc-900">
+                      {summary.title}
+                    </h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Cluster ID: {summary.cluster_id}
+                    </p>
+                    <pre className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800">
+                      {summary.detail_markdown}
+                    </pre>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">

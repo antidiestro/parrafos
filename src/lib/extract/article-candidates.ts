@@ -141,9 +141,106 @@ function getMetaContent(
   return trimmed ? trimmed : null;
 }
 
+const DEFAULT_PUBLISHED_AT_FALLBACK_TIMEZONE = "America/Santiago";
+
+function getPublishedAtFallbackTimezone(): string {
+  const configured = process.env.RUN_PUBLISHED_AT_FALLBACK_TIMEZONE?.trim();
+  return configured || DEFAULT_PUBLISHED_AT_FALLBACK_TIMEZONE;
+}
+
+function hasExplicitTimezone(value: string): boolean {
+  const trimmed = value.trim();
+  if (/[zZ]$/.test(trimmed)) return true;
+  return /[+-]\d{2}(?::?\d{2})$/.test(trimmed);
+}
+
+function parseNaiveDateTimeParts(value: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+} | null {
+  const match = value
+    .trim()
+    .match(
+      /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?)?$/,
+    );
+  if (!match) return null;
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const hour = Number.parseInt(match[4] ?? "0", 10);
+  const minute = Number.parseInt(match[5] ?? "0", 10);
+  const second = Number.parseInt(match[6] ?? "0", 10);
+  const millisecond = Number.parseInt((match[7] ?? "0").padEnd(3, "0"), 10);
+
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
+  if (second < 0 || second > 59) return null;
+  if (millisecond < 0 || millisecond > 999) return null;
+
+  return { year, month, day, hour, minute, second, millisecond };
+}
+
+function getTimeZoneOffsetMinutes(timeZone: string, utcMs: number): number | null {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date(utcMs));
+  const tzName = parts.find((part) => part.type === "timeZoneName")?.value;
+  if (!tzName) return null;
+  if (tzName === "GMT" || tzName === "UTC") return 0;
+
+  const match = tzName.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number.parseInt(match[2], 10);
+  const minutes = Number.parseInt(match[3] ?? "0", 10);
+  return sign * (hours * 60 + minutes);
+}
+
+function parseWithTimezoneFallback(value: string, timeZone: string): Date | null {
+  const parts = parseNaiveDateTimeParts(value);
+  if (!parts) return null;
+
+  const naiveUtcMs = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    parts.millisecond,
+  );
+
+  const firstOffset = getTimeZoneOffsetMinutes(timeZone, naiveUtcMs);
+  if (firstOffset === null) return null;
+  const firstGuessMs = naiveUtcMs - firstOffset * 60_000;
+
+  const secondOffset = getTimeZoneOffsetMinutes(timeZone, firstGuessMs);
+  if (secondOffset === null) return new Date(firstGuessMs);
+  const finalMs = naiveUtcMs - secondOffset * 60_000;
+
+  return new Date(finalMs);
+}
+
 function toIsoOrNull(value: string | null | undefined): string | null {
   if (!value) return null;
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = hasExplicitTimezone(trimmed)
+    ? new Date(trimmed)
+    : parseWithTimezoneFallback(trimmed, getPublishedAtFallbackTimezone()) ??
+      new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
 }
@@ -240,7 +337,7 @@ export function extractArticleCandidatesFromHomepage(
       if (b.score !== a.score) return b.score - a.score;
       return a.firstSeenIndex - b.firstSeenIndex;
     })
-    .slice(0, 15)
+    .slice(0, 20)
     .map((entry) => ({ url: entry.url }));
 }
 

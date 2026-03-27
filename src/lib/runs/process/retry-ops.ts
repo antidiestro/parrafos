@@ -78,6 +78,14 @@ async function retryPublishStagesFromCurrentFailure(input: {
   await runPersistBriefOutputStage({ runId, metadata });
 }
 
+function assertManualPublishRegenerationAllowed(status: string) {
+  if (status === "pending" || status === "running") {
+    throw new Error(
+      "Cannot manually regenerate publish stages while the run is pending or running.",
+    );
+  }
+}
+
 export async function retryBriefGenerationForFailedRun(
   runId: string,
 ): Promise<void> {
@@ -96,6 +104,53 @@ export async function retryBriefGenerationForFailedRun(
     runId,
     metadata: payload.metadata,
     currentStage: payload.run.current_stage,
+  });
+  await updateRunProgress(runId, {
+    status: "completed",
+    ended_at: new Date().toISOString(),
+    error_message: null,
+    metadata: payload.metadata,
+  });
+}
+
+export async function regenerateStorySummariesForRun(
+  runId: string,
+): Promise<void> {
+  const payload = await getRunDetailPayload(runId);
+  if (!payload) throw new Error("Run not found");
+  assertManualPublishRegenerationAllowed(payload.run.status);
+
+  await runGenerateStorySummariesStage({
+    runId,
+    metadata: payload.metadata,
+  });
+  await updateRunProgress(runId, {
+    error_message: null,
+    metadata: payload.metadata,
+  });
+}
+
+export async function regenerateBriefParagraphsForRun(
+  runId: string,
+): Promise<void> {
+  const payload = await getRunDetailPayload(runId);
+  if (!payload) throw new Error("Run not found");
+  assertManualPublishRegenerationAllowed(payload.run.status);
+
+  const storySummaries = payload.metadata.publish?.story_summaries ?? [];
+  if (storySummaries.length === 0) {
+    throw new Error(
+      "Cannot regenerate brief paragraphs before story summaries are generated.",
+    );
+  }
+
+  await runComposeBriefParagraphsStage({
+    runId,
+    metadata: payload.metadata,
+  });
+  await runPersistBriefOutputStage({
+    runId,
+    metadata: payload.metadata,
   });
   await updateRunProgress(runId, {
     status: "completed",
