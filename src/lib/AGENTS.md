@@ -29,4 +29,4 @@
 ## Validation
 - `npm run lint`
 - `npx tsc --noEmit`
-- Run targeted execution path (homepage/workflow console) based on modified module.
+- Run targeted execution path (homepage or `npm run generate-brief`) based on modified module.

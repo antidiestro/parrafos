@@ -4,23 +4,22 @@
 - Operational Node entrypoints run outside request/response lifecycle.
 
 ## Key Files
-- `run-workflow-console.ts`: lightweight console entrypoint for standalone brief workflow execution.
-- `workflow-console/*`: split console workflow modules (types, schemas/constants, logging, utils, stage implementations, orchestrator).
+- `run-workflow-console.ts`: thin entrypoint for `npm run generate-brief`; delegates to `src/lib/runs/console`.
 - `evaluate-clustering.ts`: offline baseline-vs-precision clustering evaluator for multilingual candidate sets.
 
 ## Workflow Console Behavior
-- `npm run workflow:console`: executes the direct workflow pipeline from publisher crawl through brief publication.
-- The pipeline is orchestrated in `workflow-console/index.ts` and split into explicit stage modules under `workflow-console/stages/`.
-- Stage progress and diagnostics are emitted to stdout using the local logging helpers.
-- The run-record stage persists a `runs` row lifecycle used for observability (`running` -> `completed`/`failed`).
+- `npm run generate-brief`: executes the direct workflow pipeline from publisher crawl through brief publication.
+- Implementation lives in `src/lib/runs/console/` (orchestration, logging, types) and `src/lib/runs/stages/` (stage modules). This script only boots the process and loads `.env` via the package script.
+- Stage progress and diagnostics are emitted to stdout using the logging helpers in `lib/runs/console`.
+- Run records are created and finalized in `lib/runs/stages/run-records.ts` (`running` → `completed`/`failed`).
 
 ## Logging
 - Console workflow logs are emitted to stdout with stage dividers and structured metadata payloads.
 - Logs include stage transitions and per-item outcomes (discovered/skipped, fetched+parsed, upserted/failed).
 
 ## Common Changes
-- Console workflow behavior/logging: update `run-workflow-console.ts`.
-- Extraction semantics: change `workflow-console/stages/*` and shared helpers in `src/lib/*`.
+- Console workflow behavior: update `src/lib/runs/console/` and `src/lib/runs/stages/`.
+- Script-only tweaks (e.g. exit handling): update `run-workflow-console.ts`.
 - Clustering quality evaluation workflow: update `evaluate-clustering.ts`.
 
 ## Clustering Evaluation Harness
@@ -39,7 +38,7 @@
   - assigned coverage.
 
 ## Verification
-- Execute `npm run workflow:console` with a valid `.env`.
+- Execute `npm run generate-brief` with a valid `.env`.
 - Confirm process exits cleanly and run status transitions in DB.
 - Confirm expected publish outputs are persisted (`briefs`, `stories`, `brief_paragraphs`, `story_articles`).
 

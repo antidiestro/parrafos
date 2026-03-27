@@ -6,7 +6,7 @@
 
 ## Module Map
 - `data/`: query helpers for briefs, publishers, runs.
-- `runs/`: orchestration of extraction runs.
+- `runs/`: console brief pipeline (`console/` orchestration + helpers, `stages/` steps, `constants.ts` model config).
 - `extract/`: network fetch + HTML cleanup for extraction.
 - `supabase/`: typed client factories and env accessors.
 - `gemini/`: Gemini client + text/JSON generation wrappers.
@@ -21,7 +21,7 @@
 - Add integration settings: update `lib/supabase` or `lib/gemini` env/client modules.
 
 ## Verification
-- Run focused scenario (homepage route or workflow console depending on change).
+- Run focused scenario (homepage route or `npm run generate-brief` depending on change).
 - `npm run lint`
 - `npx tsc --noEmit`
 

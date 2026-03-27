@@ -1,11 +1,16 @@
 import { listPublishers } from "@/lib/data/publishers";
 import { extractArticleCandidatesFromHomepage } from "@/lib/extract/article-candidates";
 import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
-import type { CandidateSource } from "@/scripts/workflow-console/types";
-import { mapWithConcurrency, toCanonicalUrl } from "@/scripts/workflow-console/utils";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+} from "@/lib/runs/console/run-artifacts";
+import type { CandidateSource } from "@/lib/runs/console/types";
+import { mapWithConcurrency, toCanonicalUrl } from "@/lib/runs/console/utils";
 
 export async function discoverCandidates(): Promise<CandidateSource[]> {
+  const stageStartedAt = Date.now();
   divider("discover_candidates");
   const publishers = await listPublishers();
   logLine("loaded publishers", { count: publishers.length });
@@ -61,5 +66,25 @@ export async function discoverCandidates(): Promise<CandidateSource[]> {
 
   const flat = discovered.flat();
   logLine("discover_candidates: done", { candidatesTotal: flat.length });
+  await writeLatestRunJson(
+    "discover_candidates/candidates.json",
+    flat.map((c) => ({
+      publisherId: c.publisherId,
+      publisherName: c.publisherName,
+      url: c.url,
+      canonicalUrl: c.canonicalUrl,
+      title: c.title,
+      description: c.description,
+      publishedAt: c.publishedAt,
+    })),
+  );
+  await writeLatestRunStageStatus("discover_candidates", {
+    stage: "discover_candidates",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    publishers: publishers.length,
+    candidatesTotal: flat.length,
+  });
   return flat;
 }

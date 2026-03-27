@@ -6,7 +6,7 @@ A **Next.js** app in `src/app` reads the database with **server-only** Supabase 
 
 This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
 
-Run generation now happens through the standalone console workflow (`npm run workflow:console`).
+Run generation now happens through the standalone brief pipeline (`npm run generate-brief`).
 
 > **Caution:** `supabase db push` applies migrations to the linked remote database. There is no local copy of the schema unless you add a separate staging project or use branches. Take backups or test risky changes on another project first.
 
@@ -104,12 +104,12 @@ npm run update-types
 
 Output: `src/database.types.ts`. Use with `createClient<Database>(...)`.
 
-## Run workflow console
+## Generate brief
 
-Execute the full workflow (discover, cluster, extract, summarize, publish) from the CLI:
+Run the full pipeline (discover, cluster, extract, summarize, publish) from the CLI:
 
 ```bash
-npm run workflow:console
+npm run generate-brief
 ```
 
 ## Using the Supabase clients
@@ -148,11 +148,11 @@ This is a lightweight map of where most changes should go:
 | `src/app/` | Next.js routes and handlers (public homepage and API routes) |
 | `src/lib/` | Shared server-side domain logic (data access, runs, extract, integrations) |
 | `src/lib/data/` | Query helpers used by pages and workflow observability (`briefs`, `publishers`, `runs`) |
-| `src/lib/runs/` | Shared run constants/progress/persistence contracts used by workflow console |
+| `src/lib/runs/` | Console brief pipeline: `console/` orchestration, `stages/`, shared `constants.ts` |
 | `src/lib/extract/` | HTTP fetch/retry/size guards and HTML cleaning for model input |
 | `src/lib/gemini/` | Gemini client/env wrappers and text/JSON generation helpers |
 | `src/lib/supabase/` | Typed Supabase client/env helpers (anon + service role) |
-| `src/scripts/` | Operational scripts (`workflow-console` entrypoint and stages) |
+| `src/scripts/` | Operational script entrypoints (`run-workflow-console.ts`, eval harnesses, etc.) |
 | `src/database.types.ts` | Generated `Database` type for PostgREST |
 | `supabase/migrations/` | SQL migrations (schema + RLS), applied with `npm run db:push` |
 | `supabase/seed.sql` | Used only if you run a **local** `supabase db reset` (optional) |

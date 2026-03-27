@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "workflow:console": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
+    "generate-brief": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
   },
   "dependencies": {

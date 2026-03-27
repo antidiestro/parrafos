@@ -26,4 +26,4 @@
 - `npx tsc --noEmit`
 - Run the relevant flow:
   - web: `npm run dev`
-  - workflow console: `npm run workflow:console`
+  - brief generation: `npm run generate-brief`

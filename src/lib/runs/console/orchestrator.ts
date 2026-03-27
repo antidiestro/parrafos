@@ -4,7 +4,12 @@ import {
   RUN_EXTRACT_MODEL,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  prepareLatestRunArtifactsDir,
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+} from "@/lib/runs/console/run-artifacts";
 import {
   clusterSources,
   composeBriefParagraphs,
@@ -17,7 +22,7 @@ import {
   prefetchMetadata,
   selectClusters,
   upsertExtractedArticles,
-} from "@/scripts/workflow-console/stages";
+} from "@/lib/runs/stages";
 
 export async function runConsoleWorkflow() {
   const startedAt = Date.now();
@@ -30,6 +35,8 @@ export async function runConsoleWorkflow() {
   });
 
   try {
+    await prepareLatestRunArtifactsDir();
+
     const discovered = await discoverCandidates();
     if (discovered.length === 0) {
       throw new Error("No candidates discovered.");
@@ -44,8 +51,17 @@ export async function runConsoleWorkflow() {
         ? Math.min(extractConcurrencyRaw, 20)
         : 5;
 
+    const createRunRecordStart = Date.now();
     runId = await createConsoleRunRecord();
     logLine("created console run record", { runId });
+    await writeLatestRunJson("create_run_record/run-record.json", { runId });
+    await writeLatestRunStageStatus("create_run_record", {
+      stage: "create_run_record",
+      finishedAt: new Date().toISOString(),
+      ok: true,
+      durationMs: Date.now() - createRunRecordStart,
+      runId,
+    });
 
     const { prefetchedByKey, metadataReadyRecent } = await prefetchMetadata({
       discovered,

@@ -26,4 +26,4 @@
 ## Validation Baseline
 - `npm run lint`
 - `npx tsc --noEmit`
-- Run targeted runtime checks relevant to modified domain (web route, workflow console, or DB workflow).
+- Run targeted runtime checks relevant to modified domain (web route, brief generation script, or DB workflow).

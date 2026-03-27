@@ -3,18 +3,23 @@ import { RUN_CLUSTER_MODEL } from "@/lib/runs/constants";
 import {
   clusterResponseJsonSchema,
   clusterSchema,
-} from "@/scripts/workflow-console/constants";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
+} from "@/lib/runs/console/pipeline-constants";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+} from "@/lib/runs/console/run-artifacts";
 import type {
   CandidateSource,
   ClusterDraft,
-} from "@/scripts/workflow-console/types";
-import { sourceKeyFor, toSingleLine } from "@/scripts/workflow-console/utils";
+} from "@/lib/runs/console/types";
+import { sourceKeyFor, toSingleLine } from "@/lib/runs/console/utils";
 
 export async function clusterSources(candidates: CandidateSource[]): Promise<{
   clusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
 }> {
+  const stageStartedAt = Date.now();
   divider("cluster_sources");
   logLine("cluster_sources: input prepared", { candidates: candidates.length });
   if (candidates.length === 0) {
@@ -90,6 +95,23 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     clustersCreated: clusters.length,
     assignedSources: clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0),
     candidatesTotal: candidates.length,
+  });
+  await writeLatestRunJson("cluster_sources/model-response.json", generated);
+  await writeLatestRunJson("cluster_sources/clusters.json", {
+    clusters,
+    clustersCreated: clusters.length,
+    assignedSources: clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0),
+    candidatesTotal: candidates.length,
+  });
+  await writeLatestRunStageStatus("cluster_sources", {
+    stage: "cluster_sources",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    clustersCreated: clusters.length,
+    assignedSources: clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0),
+    candidatesTotal: candidates.length,
+    returnedStoriesFromModel: generated.stories.length,
   });
   return { clusters, sourceByKey };
 }

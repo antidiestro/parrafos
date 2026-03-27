@@ -4,13 +4,18 @@ import { fetchHtmlWithRetries } from "@/lib/extract/fetch";
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import { RUN_EXTRACT_MODEL } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  sanitizeArtifactBasename,
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+} from "@/lib/runs/console/run-artifacts";
 import type {
   CandidateSource,
   ClusterDraft,
   ExtractedArticle,
   PrefetchedArticle,
-} from "@/scripts/workflow-console/types";
+} from "@/lib/runs/console/types";
 
 async function articleExists(
   publisherId: string,
@@ -42,6 +47,7 @@ export async function extractBodies(input: {
   extracted: ExtractedArticle[];
   skippedExisting: number;
 }> {
+  const stageStartedAt = Date.now();
   divider("extract_bodies");
   const selectedCandidates = input.selectedClusters.flatMap((cluster) =>
     cluster.sourceKeys
@@ -101,6 +107,17 @@ export async function extractBodies(input: {
         sourceUrl: articleRes.finalUrl,
         bodyText: extraction.body_text,
       });
+      const artifactKey = `${candidate.publisherId}::${candidate.canonicalUrl}`;
+      await writeLatestRunJson(
+        `extract_bodies/llm/${sanitizeArtifactBasename(artifactKey)}.json`,
+        {
+          publisherId: candidate.publisherId,
+          canonicalUrl: candidate.canonicalUrl,
+          url: candidate.url,
+          sourceUrl: articleRes.finalUrl,
+          body_text: extraction.body_text,
+        },
+      );
       logLine("extract: success", {
         publisherId: candidate.publisherId,
         canonicalUrl: candidate.canonicalUrl,
@@ -116,6 +133,15 @@ export async function extractBodies(input: {
   }
 
   logLine("extract_bodies: done", {
+    extracted: extracted.length,
+    skippedExisting,
+  });
+  await writeLatestRunStageStatus("extract_bodies", {
+    stage: "extract_bodies",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    uniqueCandidates: candidates.length,
     extracted: extracted.length,
     skippedExisting,
   });

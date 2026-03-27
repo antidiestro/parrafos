@@ -6,7 +6,7 @@ import {
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { logLine } from "@/scripts/workflow-console/logging";
+import { logLine } from "@/lib/runs/console/logging";
 
 function consoleRunMetadata(): Json {
   return {

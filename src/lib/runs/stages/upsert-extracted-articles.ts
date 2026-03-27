@@ -4,16 +4,34 @@ import {
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
-import type { ExtractedArticle } from "@/scripts/workflow-console/types";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+} from "@/lib/runs/console/run-artifacts";
+import type { ExtractedArticle } from "@/lib/runs/console/types";
 
 export async function upsertExtractedArticles(
   extracted: ExtractedArticle[],
   runId: string,
 ): Promise<void> {
+  const stageStartedAt = Date.now();
   divider("upsert_articles");
   if (extracted.length === 0) {
     logLine("upsert_articles: no new rows to upsert");
+    await writeLatestRunJson("upsert_extracted_articles/upsert-summary.json", {
+      runId,
+      rowCount: 0,
+      skipped: true,
+    });
+    await writeLatestRunStageStatus("upsert_extracted_articles", {
+      stage: "upsert_extracted_articles",
+      finishedAt: new Date().toISOString(),
+      ok: true,
+      durationMs: Date.now() - stageStartedAt,
+      runId,
+      rowCount: 0,
+    });
     return;
   }
   const supabase = createSupabaseServiceClient();
@@ -45,4 +63,16 @@ export async function upsertExtractedArticles(
     .upsert(rows, { onConflict: "publisher_id,canonical_url" });
   if (error) throw new Error(error.message);
   logLine("upsert_articles: completed", { upsertedRows: rows.length });
+  await writeLatestRunJson("upsert_extracted_articles/upsert-summary.json", {
+    runId,
+    rowCount: rows.length,
+  });
+  await writeLatestRunStageStatus("upsert_extracted_articles", {
+    stage: "upsert_extracted_articles",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    runId,
+    rowCount: rows.length,
+  });
 }

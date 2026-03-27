@@ -4,17 +4,23 @@ import {
   OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
   finalBriefParagraphsResponseJsonSchema,
   finalBriefParagraphsSchema,
-} from "@/scripts/workflow-console/constants";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
+} from "@/lib/runs/console/pipeline-constants";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+  writeLatestRunText,
+} from "@/lib/runs/console/run-artifacts";
 import type {
   BriefParagraphRow,
   StorySummaryRow,
-} from "@/scripts/workflow-console/types";
-import { decodeHtmlEntities, replaceNewlinesWithSpaces } from "@/scripts/workflow-console/utils";
+} from "@/lib/runs/console/types";
+import { decodeHtmlEntities, replaceNewlinesWithSpaces } from "@/lib/runs/console/utils";
 
 export async function composeBriefParagraphs(
   storySummaries: StorySummaryRow[],
 ): Promise<BriefParagraphRow[]> {
+  const stageStartedAt = Date.now();
   divider("compose_brief_paragraphs");
   logLine("compose_brief_paragraphs: input prepared", {
     storySummaries: storySummaries.length,
@@ -23,6 +29,7 @@ export async function composeBriefParagraphs(
     throw new Error("Cannot compose brief paragraphs without story summaries.");
   }
   const referenceNowIso = new Date().toISOString();
+
   const summaryBlocks = storySummaries
     .map((summary, idx) =>
       [
@@ -86,5 +93,22 @@ export async function composeBriefParagraphs(
     markdown: replaceNewlinesWithSpaces(decodeHtmlEntities(paragraph.markdown)),
   }));
   logLine("compose_brief_paragraphs: done", { paragraphs: rows.length });
+  await writeLatestRunJson(
+    "compose_brief_paragraphs/model-response.json",
+    generated,
+  );
+  await writeLatestRunText(
+    "compose_brief_paragraphs/brief.md",
+    `${rows.map((r) => r.markdown).join("\n\n")}\n`,
+  );
+  await writeLatestRunStageStatus("compose_brief_paragraphs", {
+    stage: "compose_brief_paragraphs",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    storySummaries: storySummaries.length,
+    paragraphs: rows.length,
+    paragraphsReturnedFromModel: generated.paragraphs.length,
+  });
   return rows;
 }

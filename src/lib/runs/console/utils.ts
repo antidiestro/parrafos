@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import {
   EXISTING_ARTICLE_BATCH_SIZE,
   EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS,
-} from "@/scripts/workflow-console/constants";
+} from "@/lib/runs/console/pipeline-constants";
 
 export function toCanonicalUrl(raw: string, baseUrl: string): string | null {
   try {

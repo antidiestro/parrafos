@@ -5,14 +5,20 @@ import {
   OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
   storyDetailResponseJsonSchema,
   storyDetailSchema,
-} from "@/scripts/workflow-console/constants";
-import { divider, logLine } from "@/scripts/workflow-console/logging";
+} from "@/lib/runs/console/pipeline-constants";
+import { divider, logLine } from "@/lib/runs/console/logging";
+import {
+  sanitizeArtifactBasename,
+  writeLatestRunJson,
+  writeLatestRunStageStatus,
+  writeLatestRunText,
+} from "@/lib/runs/console/run-artifacts";
 import type {
   CandidateSource,
   ClusterDraft,
   StorySummaryRow,
-} from "@/scripts/workflow-console/types";
-import { decodeHtmlEntities, toHoursAgo } from "@/scripts/workflow-console/utils";
+} from "@/lib/runs/console/types";
+import { decodeHtmlEntities, toHoursAgo } from "@/lib/runs/console/utils";
 
 async function loadArticleBodiesBySource(
   sources: CandidateSource[],
@@ -79,6 +85,7 @@ export async function generateStorySummaries(input: {
   selectedClusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
 }): Promise<StorySummaryRow[]> {
+  const stageStartedAt = Date.now();
   divider("generate_story_summaries");
   const sortedClusters = input.selectedClusters
     .slice()
@@ -185,10 +192,24 @@ export async function generateStorySummaries(input: {
         responseJsonSchema: storyDetailResponseJsonSchema,
       },
     });
+    const clusterSlug = sanitizeArtifactBasename(cluster.id, 120);
+    await writeLatestRunJson(
+      `generate_story_summaries/clusters/${clusterSlug}.json`,
+      {
+        cluster_id: cluster.id,
+        story_title: cluster.title,
+        ...generated,
+      },
+    );
+    const detailMd = decodeHtmlEntities(generated.detail_markdown).trim();
+    await writeLatestRunText(
+      `generate_story_summaries/clusters/${clusterSlug}.md`,
+      `${detailMd}\n`,
+    );
     summaries.push({
       clusterId: cluster.id,
       title: cluster.title,
-      detailMarkdown: decodeHtmlEntities(generated.detail_markdown).trim(),
+      detailMarkdown: detailMd,
     });
     logLine("story_summary: completed", {
       clusterId: cluster.id,
@@ -196,5 +217,13 @@ export async function generateStorySummaries(input: {
     });
   }
   logLine("generate_story_summaries: done", { summaries: summaries.length });
+  await writeLatestRunStageStatus("generate_story_summaries", {
+    stage: "generate_story_summaries",
+    finishedAt: new Date().toISOString(),
+    ok: true,
+    durationMs: Date.now() - stageStartedAt,
+    summaries: summaries.length,
+    clustersProcessed: sortedClusters.length,
+  });
   return summaries;
 }
