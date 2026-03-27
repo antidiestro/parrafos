@@ -169,9 +169,7 @@ async function loadBriefArticleBodyKeysForSources(
     }
     for (const row of data ?? []) {
       if (!row.body_text?.trim()) continue;
-      keys.add(
-        articleBodyLookupKey(row.publisher_id, row.canonical_url),
-      );
+      keys.add(articleBodyLookupKey(row.publisher_id, row.canonical_url));
     }
   }
 
@@ -228,9 +226,18 @@ function hydrateRunMetadata(input: {
   return {
     ...fallback,
     models: {
-      identification: input.run.extract_model ?? fallback.models?.identification ?? fallback.model,
-      extraction: input.run.extract_model ?? fallback.models?.extraction ?? fallback.model,
-      clustering: input.run.cluster_model ?? fallback.models?.clustering ?? fallback.model,
+      identification:
+        input.run.extract_model ??
+        fallback.models?.identification ??
+        fallback.model,
+      extraction:
+        input.run.extract_model ??
+        fallback.models?.extraction ??
+        fallback.model,
+      clustering:
+        input.run.cluster_model ??
+        fallback.models?.clustering ??
+        fallback.model,
       relevance_selection:
         input.run.relevance_model ??
         fallback.models?.relevance_selection ??
@@ -239,12 +246,16 @@ function hydrateRunMetadata(input: {
     publisher_count: input.run.publisher_count ?? fallback.publisher_count,
     publishers_done: input.run.publishers_done ?? fallback.publishers_done,
     articles_found: input.run.articles_found ?? fallback.articles_found,
-    articles_upserted: input.run.articles_upserted ?? fallback.articles_upserted,
+    articles_upserted:
+      input.run.articles_upserted ?? fallback.articles_upserted,
     clusters_total: input.run.clusters_total ?? fallback.clusters_total,
-    clusters_eligible: input.run.clusters_eligible ?? fallback.clusters_eligible,
-    clusters_selected: input.run.clusters_selected ?? fallback.clusters_selected,
+    clusters_eligible:
+      input.run.clusters_eligible ?? fallback.clusters_eligible,
+    clusters_selected:
+      input.run.clusters_selected ?? fallback.clusters_selected,
     sources_selected: input.run.sources_selected ?? fallback.sources_selected,
-    publishers: input.publishers.length > 0 ? input.publishers : fallback.publishers,
+    publishers:
+      input.publishers.length > 0 ? input.publishers : fallback.publishers,
     articles: input.articles.length > 0 ? input.articles : fallback.articles,
     errors: input.errors.length > 0 ? input.errors : fallback.errors,
   };
@@ -276,7 +287,10 @@ async function listRunStoryClusters(
     throw new Error(sourceError.message);
   }
 
-  const sourceByCluster = new Map<string, RunStoryClusterSourceWithPublisher[]>();
+  const sourceByCluster = new Map<
+    string,
+    RunStoryClusterSourceWithPublisher[]
+  >();
   for (const row of sourceRows ?? []) {
     const clusterSources = sourceByCluster.get(row.cluster_id) ?? [];
     clusterSources.push({

@@ -19,14 +19,16 @@ export async function startRunStage(
   const attempt = (latest?.attempt ?? 0) + 1;
 
   const now = new Date().toISOString();
-  const { error: stageError } = await supabase.from("run_stage_executions").insert({
-    run_id: runId,
-    stage,
-    attempt,
-    status: "running",
-    started_at: now,
-    heartbeat_at: now,
-  });
+  const { error: stageError } = await supabase
+    .from("run_stage_executions")
+    .insert({
+      run_id: runId,
+      stage,
+      attempt,
+      status: "running",
+      started_at: now,
+      heartbeat_at: now,
+    });
   if (stageError) throw new Error(stageError.message);
 
   const { error: runError } = await supabase
@@ -48,7 +50,14 @@ export async function completeRunStage(
   attempt: number,
   resumeCursor?: Json,
 ) {
-  await setRunStageStatus(runId, stage, attempt, "completed", null, resumeCursor);
+  await setRunStageStatus(
+    runId,
+    stage,
+    attempt,
+    "completed",
+    null,
+    resumeCursor,
+  );
 }
 
 export async function failRunStage(
@@ -74,7 +83,14 @@ export async function cancelRunStage(
   attempt: number,
   resumeCursor?: Json,
 ) {
-  await setRunStageStatus(runId, stage, attempt, "cancelled", null, resumeCursor);
+  await setRunStageStatus(
+    runId,
+    stage,
+    attempt,
+    "cancelled",
+    null,
+    resumeCursor,
+  );
 }
 
 async function setRunStageStatus(

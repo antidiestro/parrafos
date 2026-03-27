@@ -1,7 +1,4 @@
-import {
-  articleBodyLookupKey,
-  type RunDetailPayload,
-} from "@/lib/data/runs";
+import { articleBodyLookupKey, type RunDetailPayload } from "@/lib/data/runs";
 
 /** Matches brief worker: any `articles` row with body_text, not only this run. */
 function buildArticleBodyKeySet(payload: RunDetailPayload): Set<string> {
@@ -91,7 +88,7 @@ export function getBriefRetryAvailability(
     reasons.push({
       id: "no-selected-cluster-rows",
       message:
-        "No story clusters are stored with status \"selected\" for this run.",
+        'No story clusters are stored with status "selected" for this run.',
     });
   }
 

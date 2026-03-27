@@ -57,7 +57,10 @@ const BLOCKED_PATH_SEGMENTS = new Set([
   "galerias",
 ]);
 
-function hostnameMatchesPublisher(candidateHost: string, publisherHost: string): boolean {
+function hostnameMatchesPublisher(
+  candidateHost: string,
+  publisherHost: string,
+): boolean {
   if (candidateHost === publisherHost) return true;
   return (
     candidateHost.endsWith(`.${publisherHost}`) ||
@@ -101,7 +104,9 @@ function getArticleUrlScore(raw: string, baseUrl: string): number | null {
       return null;
     }
 
-    if (normalizedSegments.some((segment) => BLOCKED_PATH_SEGMENTS.has(segment))) {
+    if (
+      normalizedSegments.some((segment) => BLOCKED_PATH_SEGMENTS.has(segment))
+    ) {
       return null;
     }
 
@@ -125,7 +130,10 @@ function getArticleUrlScore(raw: string, baseUrl: string): number | null {
   }
 }
 
-function getMetaContent($: ReturnType<typeof load>, key: string): string | null {
+function getMetaContent(
+  $: ReturnType<typeof load>,
+  key: string,
+): string | null {
   const value =
     $(`meta[property="${key}"]`).attr("content") ??
     $(`meta[name="${key}"]`).attr("content");
@@ -218,7 +226,11 @@ export function extractArticleCandidatesFromHomepage(
 
     const existing = rankedByUrl.get(canonical);
     if (!existing || score > existing.score) {
-      rankedByUrl.set(canonical, { url: canonical, score, firstSeenIndex: index });
+      rankedByUrl.set(canonical, {
+        url: canonical,
+        score,
+        firstSeenIndex: index,
+      });
     }
     index += 1;
   });

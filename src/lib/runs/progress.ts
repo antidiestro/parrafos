@@ -176,7 +176,8 @@ function normalizeArticle(value: unknown): RunArticleProgress | null {
     canonical_url:
       typeof row.canonical_url === "string" ? row.canonical_url : null,
     title: typeof row.title === "string" ? row.title : null,
-    published_at: typeof row.published_at === "string" ? row.published_at : null,
+    published_at:
+      typeof row.published_at === "string" ? row.published_at : null,
     status,
     error_message:
       typeof row.error_message === "string" ? row.error_message : null,
@@ -208,13 +209,15 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
       row.models &&
       typeof row.models === "object" &&
       !Array.isArray(row.models) &&
-      typeof (row.models as Record<string, unknown>).identification === "string" &&
+      typeof (row.models as Record<string, unknown>).identification ===
+        "string" &&
       typeof (row.models as Record<string, unknown>).clustering === "string" &&
       typeof (row.models as Record<string, unknown>).relevance_selection ===
         "string" &&
       typeof (row.models as Record<string, unknown>).extraction === "string"
         ? {
-            identification: (row.models as Record<string, string>).identification,
+            identification: (row.models as Record<string, string>)
+              .identification,
             clustering: (row.models as Record<string, string>).clustering,
             relevance_selection: (row.models as Record<string, string>)
               .relevance_selection,
@@ -229,7 +232,8 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
       typeof row.articles_found === "number" ? row.articles_found : 0,
     articles_upserted:
       typeof row.articles_upserted === "number" ? row.articles_upserted : 0,
-    clusters_total: typeof row.clusters_total === "number" ? row.clusters_total : 0,
+    clusters_total:
+      typeof row.clusters_total === "number" ? row.clusters_total : 0,
     clusters_eligible:
       typeof row.clusters_eligible === "number" ? row.clusters_eligible : 0,
     clusters_selected:
@@ -248,13 +252,14 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
               (row.publish as Record<string, unknown>).story_summaries,
             )
               ? (
-                  (row.publish as Record<string, unknown>).story_summaries as Array<
-                    Record<string, unknown>
-                  >
+                  (row.publish as Record<string, unknown>)
+                    .story_summaries as Array<Record<string, unknown>>
                 )
                   .map((entry) => ({
                     cluster_id:
-                      typeof entry.cluster_id === "string" ? entry.cluster_id : "",
+                      typeof entry.cluster_id === "string"
+                        ? entry.cluster_id
+                        : "",
                     title: typeof entry.title === "string" ? entry.title : "",
                     detail_markdown:
                       typeof entry.detail_markdown === "string"
@@ -272,14 +277,16 @@ export function parseRunMetadata(value: Json | null): RunMetadata {
               (row.publish as Record<string, unknown>).brief_paragraphs,
             )
               ? (
-                  (row.publish as Record<string, unknown>).brief_paragraphs as Array<
-                    Record<string, unknown>
-                  >
+                  (row.publish as Record<string, unknown>)
+                    .brief_paragraphs as Array<Record<string, unknown>>
                 )
                   .map((entry) => ({
                     cluster_id:
-                      typeof entry.cluster_id === "string" ? entry.cluster_id : "",
-                    markdown: typeof entry.markdown === "string" ? entry.markdown : "",
+                      typeof entry.cluster_id === "string"
+                        ? entry.cluster_id
+                        : "",
+                    markdown:
+                      typeof entry.markdown === "string" ? entry.markdown : "",
                   }))
                   .filter(
                     (entry) =>

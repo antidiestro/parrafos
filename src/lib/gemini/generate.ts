@@ -28,7 +28,8 @@ export async function generateGeminiText(
 
   const responseMimeType =
     opts?.responseMimeType ??
-    (opts?.responseSchema !== undefined || opts?.responseJsonSchema !== undefined
+    (opts?.responseSchema !== undefined ||
+    opts?.responseJsonSchema !== undefined
       ? "application/json"
       : undefined);
 
@@ -87,7 +88,10 @@ export async function generateGeminiJson<TSchema extends z.ZodTypeAny>(
   },
 ): Promise<z.infer<TSchema>> {
   const so = opts?.nativeStructuredOutput;
-  if (so?.responseSchema !== undefined && so?.responseJsonSchema !== undefined) {
+  if (
+    so?.responseSchema !== undefined &&
+    so?.responseJsonSchema !== undefined
+  ) {
     throw new Error(
       "nativeStructuredOutput: pass only one of responseSchema or responseJsonSchema",
     );

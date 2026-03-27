@@ -2,7 +2,10 @@ import { claimNextPendingRun, processRun } from "@/lib/runs/process";
 
 function log(message: string, context?: Record<string, unknown>) {
   if (context) {
-    console.log(`[worker:runs] ${new Date().toISOString()} ${message}`, context);
+    console.log(
+      `[worker:runs] ${new Date().toISOString()} ${message}`,
+      context,
+    );
   } else {
     console.log(`[worker:runs] ${new Date().toISOString()} ${message}`);
   }

@@ -3,7 +3,8 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type BriefRow = Database["public"]["Tables"]["briefs"]["Row"];
 type StoryRow = Database["public"]["Tables"]["stories"]["Row"];
-type BriefParagraphRow = Database["public"]["Tables"]["brief_paragraphs"]["Row"];
+type BriefParagraphRow =
+  Database["public"]["Tables"]["brief_paragraphs"]["Row"];
 type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
 
 export type LatestBriefBundle = {
@@ -57,7 +58,9 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
   const storyIds = paragraphRows.map((row) => row.story_id);
   const { data: stories, error: storiesError } = await supabase
     .from("stories")
-    .select("id,brief_id,position,markdown,detail_markdown,created_at,updated_at")
+    .select(
+      "id,brief_id,position,markdown,detail_markdown,created_at,updated_at",
+    )
     .in("id", storyIds);
   if (storiesError) {
     throw new Error(storiesError.message);
@@ -116,7 +119,9 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
         articleIdsByStoryId
           .get(paragraph.story_id)
           ?.map((articleId) => articleById.get(articleId))
-          .filter((article): article is NonNullable<typeof article> => Boolean(article))
+          .filter((article): article is NonNullable<typeof article> =>
+            Boolean(article),
+          )
           .map((article) => {
             const url = article.source_url ?? article.canonical_url;
             let faviconUrl: string | null = null;

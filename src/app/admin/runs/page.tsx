@@ -63,7 +63,10 @@ export default async function AdminRunsPage() {
             <tbody className="divide-y divide-zinc-100 bg-white">
               {runs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-zinc-500"
+                  >
                     No runs yet. Start one above.
                   </td>
                 </tr>

@@ -53,7 +53,9 @@ export async function fetchHtmlWithRetries(
         },
       );
       if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 500));
+        await new Promise((resolve) =>
+          setTimeout(resolve, (attempt + 1) * 500),
+        );
       }
     }
   }

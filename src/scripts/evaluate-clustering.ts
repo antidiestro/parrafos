@@ -69,7 +69,10 @@ function parseArgs() {
   if (!inputPath) {
     throw new Error("Missing --input <path-to-json>");
   }
-  return { inputPath: resolve(inputPath), outPath: outPath ? resolve(outPath) : null };
+  return {
+    inputPath: resolve(inputPath),
+    outPath: outPath ? resolve(outPath) : null,
+  };
 }
 
 async function clusterBaseline(candidates: unknown[]) {
@@ -127,7 +130,9 @@ function countAssignedSources(stories: ClusterResult["stories"]) {
   return new Set(stories.flatMap((story) => story.source_keys)).size;
 }
 
-async function evaluateSample(sample: z.infer<typeof datasetSchema.shape.samples.element>) {
+async function evaluateSample(
+  sample: z.infer<typeof datasetSchema.shape.samples.element>,
+) {
   const baseline = await clusterBaseline(sample.candidates);
   const precision = await clusterPrecision(sample.candidates);
   const baselineJudge = await judgeClusterSpecificity(baseline.stories);
@@ -137,10 +142,18 @@ async function evaluateSample(sample: z.infer<typeof datasetSchema.shape.samples
   const baselineAssigned = countAssignedSources(baseline.stories);
   const precisionAssigned = countAssignedSources(precision.stories);
 
-  const baselineSpecific = baselineJudge.ratings.filter((r) => r.specific_story).length;
-  const precisionSpecific = precisionJudge.ratings.filter((r) => r.specific_story).length;
-  const baselineBroad = baselineJudge.ratings.filter((r) => r.broad_or_mixed).length;
-  const precisionBroad = precisionJudge.ratings.filter((r) => r.broad_or_mixed).length;
+  const baselineSpecific = baselineJudge.ratings.filter(
+    (r) => r.specific_story,
+  ).length;
+  const precisionSpecific = precisionJudge.ratings.filter(
+    (r) => r.specific_story,
+  ).length;
+  const baselineBroad = baselineJudge.ratings.filter(
+    (r) => r.broad_or_mixed,
+  ).length;
+  const precisionBroad = precisionJudge.ratings.filter(
+    (r) => r.broad_or_mixed,
+  ).length;
 
   return {
     sample_id: sample.sample_id,
@@ -148,16 +161,22 @@ async function evaluateSample(sample: z.infer<typeof datasetSchema.shape.samples
     baseline: {
       clusters_total: baseline.stories.length,
       assigned_sources: baselineAssigned,
-      assigned_coverage: totalCandidates ? baselineAssigned / totalCandidates : 0,
+      assigned_coverage: totalCandidates
+        ? baselineAssigned / totalCandidates
+        : 0,
       specific_cluster_rate: baseline.stories.length
         ? baselineSpecific / baseline.stories.length
         : 0,
-      broad_cluster_rate: baseline.stories.length ? baselineBroad / baseline.stories.length : 0,
+      broad_cluster_rate: baseline.stories.length
+        ? baselineBroad / baseline.stories.length
+        : 0,
     },
     precision: {
       clusters_total: precision.stories.length,
       assigned_sources: precisionAssigned,
-      assigned_coverage: totalCandidates ? precisionAssigned / totalCandidates : 0,
+      assigned_coverage: totalCandidates
+        ? precisionAssigned / totalCandidates
+        : 0,
       specific_cluster_rate: precision.stories.length
         ? precisionSpecific / precision.stories.length
         : 0,
@@ -184,23 +203,35 @@ async function main() {
   const summary = {
     sample_count: samples.length,
     baseline_avg_broad_cluster_rate:
-      samples.reduce((acc, sample) => acc + sample.baseline.broad_cluster_rate, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.baseline.broad_cluster_rate,
+        0,
+      ) / samples.length,
     precision_avg_broad_cluster_rate:
-      samples.reduce((acc, sample) => acc + sample.precision.broad_cluster_rate, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.precision.broad_cluster_rate,
+        0,
+      ) / samples.length,
     baseline_avg_specific_cluster_rate:
-      samples.reduce((acc, sample) => acc + sample.baseline.specific_cluster_rate, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.baseline.specific_cluster_rate,
+        0,
+      ) / samples.length,
     precision_avg_specific_cluster_rate:
-      samples.reduce((acc, sample) => acc + sample.precision.specific_cluster_rate, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.precision.specific_cluster_rate,
+        0,
+      ) / samples.length,
     baseline_avg_assigned_coverage:
-      samples.reduce((acc, sample) => acc + sample.baseline.assigned_coverage, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.baseline.assigned_coverage,
+        0,
+      ) / samples.length,
     precision_avg_assigned_coverage:
-      samples.reduce((acc, sample) => acc + sample.precision.assigned_coverage, 0) /
-      samples.length,
+      samples.reduce(
+        (acc, sample) => acc + sample.precision.assigned_coverage,
+        0,
+      ) / samples.length,
   };
 
   const report = { summary, samples };

@@ -24,7 +24,12 @@ type Props = {
 };
 
 type ArticleProgress = RunDetailPayload["metadata"]["articles"][number];
-type StageUiState = "pending" | "running" | "completed" | "failed" | "cancelled";
+type StageUiState =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 const STAGE_META: Record<
   RunStage,
@@ -86,7 +91,9 @@ function formatPercent(completed: number, total: number) {
 }
 
 function isTerminalStatus(status: string) {
-  return status === "completed" || status === "failed" || status === "cancelled";
+  return (
+    status === "completed" || status === "failed" || status === "cancelled"
+  );
 }
 
 function statusClass(status: string) {
@@ -166,7 +173,11 @@ function StageIcon({ state }: { state: StageUiState }) {
   if (state === "completed") {
     return (
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-green-200 bg-green-50 text-green-700">
-        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+        <svg
+          viewBox="0 0 20 20"
+          className="h-4 w-4 fill-current"
+          aria-hidden="true"
+        >
           <path d="M7.8 13.7 4.5 10.4l-1.1 1.1 4.4 4.4L16.6 7l-1.1-1.1z" />
         </svg>
       </span>
@@ -185,7 +196,11 @@ function StageIcon({ state }: { state: StageUiState }) {
   if (state === "failed") {
     return (
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700">
-        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+        <svg
+          viewBox="0 0 20 20"
+          className="h-4 w-4 fill-current"
+          aria-hidden="true"
+        >
           <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm.8 11h-1.6v-1.6h1.6Zm0-3.2h-1.6V6.5h1.6Z" />
         </svg>
       </span>
@@ -194,7 +209,11 @@ function StageIcon({ state }: { state: StageUiState }) {
   if (state === "cancelled") {
     return (
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-300 bg-zinc-100 text-zinc-700">
-        <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+        <svg
+          viewBox="0 0 20 20"
+          className="h-4 w-4 fill-current"
+          aria-hidden="true"
+        >
           <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm3.2 8.3H6.8V9.2h6.4Z" />
         </svg>
       </span>
@@ -202,7 +221,11 @@ function StageIcon({ state }: { state: StageUiState }) {
   }
   return (
     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700">
-      <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden="true">
+      <svg
+        viewBox="0 0 20 20"
+        className="h-4 w-4 fill-current"
+        aria-hidden="true"
+      >
         <path d="M10 2.5A7.5 7.5 0 1 0 17.5 10 7.5 7.5 0 0 0 10 2.5Zm.8 7.8V5.8H9.2V11l3.6 2.1.8-1.4Z" />
       </svg>
     </span>
@@ -235,9 +258,8 @@ export function RunDetailClient({ runId, initialData }: Props) {
   const [data, setData] = useState<RunDetailPayload>(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedArticle, setSelectedArticle] = useState<ArticleProgress | null>(
-    null,
-  );
+  const [selectedArticle, setSelectedArticle] =
+    useState<ArticleProgress | null>(null);
   const [cancelPending, setCancelPending] = useState(false);
   const [retryExtractionPending, setRetryExtractionPending] = useState(false);
   const [retryBriefPending, setRetryBriefPending] = useState(false);
@@ -328,10 +350,13 @@ export function RunDetailClient({ runId, initialData }: Props) {
       })),
     [data.run],
   );
-  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>(
+    {},
+  );
   useEffect(() => {
     const current = data.run.current_stage as RunStage | null;
-    const failedOrCancelled = data.run.status === "failed" || data.run.status === "cancelled";
+    const failedOrCancelled =
+      data.run.status === "failed" || data.run.status === "cancelled";
     if (!current) return;
     setExpandedStages((existing) => ({
       ...existing,
@@ -356,7 +381,8 @@ export function RunDetailClient({ runId, initialData }: Props) {
             ) : null}
             {data.run.current_stage ? (
               <span className="text-xs text-zinc-500">
-                Stage: {data.run.current_stage} (attempt {data.run.stage_attempt ?? 0})
+                Stage: {data.run.current_stage} (attempt{" "}
+                {data.run.stage_attempt ?? 0})
               </span>
             ) : null}
           </div>
@@ -367,9 +393,12 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 onClick={async () => {
                   try {
                     setCancelPending(true);
-                    const response = await fetch(`/admin/runs/${runId}/cancel`, {
-                      method: "POST",
-                    });
+                    const response = await fetch(
+                      `/admin/runs/${runId}/cancel`,
+                      {
+                        method: "POST",
+                      },
+                    );
                     if (!response.ok) {
                       const body = (await response.json()) as {
                         error?: string;
@@ -432,7 +461,9 @@ export function RunDetailClient({ runId, initialData }: Props) {
                 disabled={retryBriefPending}
                 className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {retryBriefPending ? "Publishing brief…" : "Retry brief generation"}
+                {retryBriefPending
+                  ? "Publishing brief…"
+                  : "Retry brief generation"}
               </button>
             ) : null}
             {canRetryExtractions ? (
@@ -564,7 +595,8 @@ export function RunDetailClient({ runId, initialData }: Props) {
           <ol className="divide-y divide-zinc-100">
             {stageUiStates.map(({ stage, state, meta }, index) => {
               const isExpanded =
-                expandedStages[stage] ?? (state === "running" || state === "failed");
+                expandedStages[stage] ??
+                (state === "running" || state === "failed");
               return (
                 <li key={stage} className="p-4">
                   <button
@@ -580,14 +612,21 @@ export function RunDetailClient({ runId, initialData }: Props) {
                     <div className="flex flex-col items-center">
                       <StageIcon state={state} />
                       {index < RUN_STAGES.length - 1 ? (
-                        <span className="mt-1 h-8 w-px bg-zinc-200" aria-hidden="true" />
+                        <span
+                          className="mt-1 h-8 w-px bg-zinc-200"
+                          aria-hidden="true"
+                        />
                       ) : null}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-zinc-900">{meta.label}</p>
-                          <p className="text-xs text-zinc-600">{meta.description}</p>
+                          <p className="text-sm font-semibold text-zinc-900">
+                            {meta.label}
+                          </p>
+                          <p className="text-xs text-zinc-600">
+                            {meta.description}
+                          </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span
@@ -609,7 +648,8 @@ export function RunDetailClient({ runId, initialData }: Props) {
                         <p>
                           Publishers processed:{" "}
                           <span className="font-semibold text-zinc-900">
-                            {data.metadata.publishers_done}/{data.metadata.publisher_count}
+                            {data.metadata.publishers_done}/
+                            {data.metadata.publisher_count}
                           </span>
                         </p>
                       ) : null}
@@ -668,18 +708,26 @@ export function RunDetailClient({ runId, initialData }: Props) {
                                 try {
                                   setRetryExtractionPending(true);
                                   setError(null);
-                                  const result = await retryFailedExtractionsAction(runId);
+                                  const result =
+                                    await retryFailedExtractionsAction(runId);
                                   if (result?.error) {
                                     throw new Error(result.error);
                                   }
-                                  const response = await fetch(`/admin/runs/${runId}/data`, {
-                                    method: "GET",
-                                    cache: "no-store",
-                                  });
+                                  const response = await fetch(
+                                    `/admin/runs/${runId}/data`,
+                                    {
+                                      method: "GET",
+                                      cache: "no-store",
+                                    },
+                                  );
                                   if (!response.ok) {
-                                    throw new Error(`Refresh failed (${response.status})`);
+                                    throw new Error(
+                                      `Refresh failed (${response.status})`,
+                                    );
                                   }
-                                  setData((await response.json()) as RunDetailPayload);
+                                  setData(
+                                    (await response.json()) as RunDetailPayload,
+                                  );
                                 } catch (retryError) {
                                   setError(
                                     retryError instanceof Error
@@ -710,7 +758,9 @@ export function RunDetailClient({ runId, initialData }: Props) {
                       ) : null}
                       {stage === "persist_brief_output" ? (
                         <div className="space-y-2">
-                          <p className="leading-relaxed">{briefRetryAvailability.headline}</p>
+                          <p className="leading-relaxed">
+                            {briefRetryAvailability.headline}
+                          </p>
                           {canRetryBrief ? (
                             <button
                               type="button"
@@ -718,18 +768,26 @@ export function RunDetailClient({ runId, initialData }: Props) {
                                 try {
                                   setRetryBriefPending(true);
                                   setError(null);
-                                  const result = await retryBriefGenerationAction(runId);
+                                  const result =
+                                    await retryBriefGenerationAction(runId);
                                   if (result?.error) {
                                     throw new Error(result.error);
                                   }
-                                  const response = await fetch(`/admin/runs/${runId}/data`, {
-                                    method: "GET",
-                                    cache: "no-store",
-                                  });
+                                  const response = await fetch(
+                                    `/admin/runs/${runId}/data`,
+                                    {
+                                      method: "GET",
+                                      cache: "no-store",
+                                    },
+                                  );
                                   if (!response.ok) {
-                                    throw new Error(`Refresh failed (${response.status})`);
+                                    throw new Error(
+                                      `Refresh failed (${response.status})`,
+                                    );
                                   }
-                                  setData((await response.json()) as RunDetailPayload);
+                                  setData(
+                                    (await response.json()) as RunDetailPayload,
+                                  );
                                 } catch (retryError) {
                                   setError(
                                     retryError instanceof Error
@@ -765,182 +823,197 @@ export function RunDetailClient({ runId, initialData }: Props) {
         </h2>
 
         <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Publishers being scraped
-        </h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-          <table className="w-full min-w-2xl text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">Publisher</th>
-                <th className="px-4 py-3">Base URL</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Found</th>
-                <th className="px-4 py-3">Upserted</th>
-                <th className="px-4 py-3">Error</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {data.metadata.publishers.length === 0 ? (
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Publishers being scraped
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+            <table className="w-full min-w-2xl text-left text-sm">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
-                    No publishers recorded yet.
-                  </td>
+                  <th className="px-4 py-3">Publisher</th>
+                  <th className="px-4 py-3">Base URL</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Found</th>
+                  <th className="px-4 py-3">Upserted</th>
+                  <th className="px-4 py-3">Error</th>
                 </tr>
-              ) : (
-                data.metadata.publishers.map((publisher) => (
-                  <tr key={publisher.publisher_id}>
-                    <td className="px-4 py-3 font-medium text-zinc-900">
-                      {publisher.publisher_name}
-                    </td>
-                    <td className="max-w-xl truncate px-4 py-3 text-zinc-600">
-                      {publisher.base_url}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(publisher.status)}`}
-                      >
-                        {publisher.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-700">
-                      {publisher.articles_found}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-700">
-                      {publisher.articles_upserted}
-                    </td>
-                    <td className="max-w-sm truncate px-4 py-3 text-zinc-600">
-                      {publisher.error_message ?? "—"}
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {data.metadata.publishers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-zinc-500"
+                    >
+                      No publishers recorded yet.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Story clusters ({clusters.length})
-        </h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-          <table className="w-full min-w-2xl text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">Story</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Sources</th>
-                <th className="px-4 py-3">Relevant sources</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {clusters.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
-                    No story clusters persisted yet.
-                  </td>
-                </tr>
-              ) : (
-                clusters.map((cluster) => (
-                  <tr key={cluster.id}>
-                    <td className="max-w-xl px-4 py-3">
-                      <div className="font-medium text-zinc-900">{cluster.title}</div>
-                      {cluster.summary ? (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-zinc-600">
-                          {cluster.summary}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(cluster.status)}`}
-                      >
-                        {cluster.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-700">{cluster.source_count}</td>
-                    <td className="max-w-2xl px-4 py-3 text-xs text-zinc-700">
-                      {cluster.sources.length === 0
-                        ? "—"
-                        : cluster.sources
-                            .map(
-                              (source) =>
-                                `${source.publisher_name ?? source.publisher_id}: ${source.title ?? source.canonical_url}`,
-                            )
-                            .join(" | ")}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Identified articles ({data.metadata.articles.length})
-        </h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-          <table className="w-full min-w-2xl text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">Article</th>
-                <th className="px-4 py-3">Publisher</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Stored</th>
-                <th className="px-4 py-3">Error</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {data.metadata.articles.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
-                    No identified articles yet.
-                  </td>
-                </tr>
-              ) : (
-                data.metadata.articles.map((article) => {
-                  const stored = getArticleByProgress(article, data.articles);
-                  const publisher = data.metadata.publishers.find(
-                    (entry) => entry.publisher_id === article.publisher_id,
-                  );
-                  return (
-                    <tr key={`${article.publisher_id}:${article.url}`}>
-                      <td className="max-w-xl px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedArticle(article)}
-                          className="truncate text-left font-medium text-zinc-900 underline-offset-4 hover:underline"
-                        >
-                          {article.title ?? article.canonical_url ?? article.url}
-                        </button>
+                ) : (
+                  data.metadata.publishers.map((publisher) => (
+                    <tr key={publisher.publisher_id}>
+                      <td className="px-4 py-3 font-medium text-zinc-900">
+                        {publisher.publisher_name}
                       </td>
-                      <td className="px-4 py-3 text-zinc-700">
-                        {publisher?.publisher_name ?? article.publisher_id}
+                      <td className="max-w-xl truncate px-4 py-3 text-zinc-600">
+                        {publisher.base_url}
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(article.status)}`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(publisher.status)}`}
                         >
-                          {article.status}
+                          {publisher.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-zinc-700">
-                        {stored ? "yes" : "no"}
+                        {publisher.articles_found}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-700">
+                        {publisher.articles_upserted}
                       </td>
                       <td className="max-w-sm truncate px-4 py-3 text-zinc-600">
-                        {article.error_message ?? "—"}
+                        {publisher.error_message ?? "—"}
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Story clusters ({clusters.length})
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+            <table className="w-full min-w-2xl text-left text-sm">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3">Story</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Sources</th>
+                  <th className="px-4 py-3">Relevant sources</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {clusters.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-8 text-center text-zinc-500"
+                    >
+                      No story clusters persisted yet.
+                    </td>
+                  </tr>
+                ) : (
+                  clusters.map((cluster) => (
+                    <tr key={cluster.id}>
+                      <td className="max-w-xl px-4 py-3">
+                        <div className="font-medium text-zinc-900">
+                          {cluster.title}
+                        </div>
+                        {cluster.summary ? (
+                          <div className="mt-0.5 line-clamp-2 text-xs text-zinc-600">
+                            {cluster.summary}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(cluster.status)}`}
+                        >
+                          {cluster.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-700">
+                        {cluster.source_count}
+                      </td>
+                      <td className="max-w-2xl px-4 py-3 text-xs text-zinc-700">
+                        {cluster.sources.length === 0
+                          ? "—"
+                          : cluster.sources
+                              .map(
+                                (source) =>
+                                  `${source.publisher_name ?? source.publisher_id}: ${source.title ?? source.canonical_url}`,
+                              )
+                              .join(" | ")}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Identified articles ({data.metadata.articles.length})
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+            <table className="w-full min-w-2xl text-left text-sm">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3">Article</th>
+                  <th className="px-4 py-3">Publisher</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Stored</th>
+                  <th className="px-4 py-3">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {data.metadata.articles.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-8 text-center text-zinc-500"
+                    >
+                      No identified articles yet.
+                    </td>
+                  </tr>
+                ) : (
+                  data.metadata.articles.map((article) => {
+                    const stored = getArticleByProgress(article, data.articles);
+                    const publisher = data.metadata.publishers.find(
+                      (entry) => entry.publisher_id === article.publisher_id,
+                    );
+                    return (
+                      <tr key={`${article.publisher_id}:${article.url}`}>
+                        <td className="max-w-xl px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedArticle(article)}
+                            className="truncate text-left font-medium text-zinc-900 underline-offset-4 hover:underline"
+                          >
+                            {article.title ??
+                              article.canonical_url ??
+                              article.url}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700">
+                          {publisher?.publisher_name ?? article.publisher_id}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(article.status)}`}
+                          >
+                            {article.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700">
+                          {stored ? "yes" : "no"}
+                        </td>
+                        <td className="max-w-sm truncate px-4 py-3 text-zinc-600">
+                          {article.error_message ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       {modalArticle ? (
@@ -983,7 +1056,9 @@ export function RunDetailClient({ runId, initialData }: Props) {
                   "—"}
               </p>
               <p>
-                <span className="font-semibold text-zinc-900">Published at:</span>{" "}
+                <span className="font-semibold text-zinc-900">
+                  Published at:
+                </span>{" "}
                 {formatTime(
                   modalArticle.stored?.published_at ??
                     modalArticle.progress.published_at,
@@ -1002,7 +1077,11 @@ export function RunDetailClient({ runId, initialData }: Props) {
               <div>
                 <p className="mb-1 font-semibold text-zinc-900">Metadata:</p>
                 <pre className="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800">
-                  {JSON.stringify(modalArticle.stored?.metadata ?? null, null, 2)}
+                  {JSON.stringify(
+                    modalArticle.stored?.metadata ?? null,
+                    null,
+                    2,
+                  )}
                 </pre>
               </div>
             </div>

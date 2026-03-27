@@ -47,7 +47,10 @@ function SourcePill({
   onClick: () => void;
 }) {
   const displaySources = paragraph.sources.slice(0, 3);
-  const remaining = Math.max(paragraph.sources.length - displaySources.length, 0);
+  const remaining = Math.max(
+    paragraph.sources.length - displaySources.length,
+    0,
+  );
 
   return (
     <button
@@ -66,7 +69,8 @@ function SourcePill({
         ))}
       </span>
       <span>
-        {paragraph.sources.length} source{paragraph.sources.length === 1 ? "" : "s"}
+        {paragraph.sources.length} source
+        {paragraph.sources.length === 1 ? "" : "s"}
         {remaining > 0 ? ` (+${remaining})` : ""}
       </span>
     </button>
@@ -74,9 +78,14 @@ function SourcePill({
 }
 
 export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
-  const [selectedParagraphId, setSelectedParagraphId] = useState<string | null>(null);
+  const [selectedParagraphId, setSelectedParagraphId] = useState<string | null>(
+    null,
+  );
   const selectedParagraph = useMemo(
-    () => bundle.paragraphs.find((paragraph) => paragraph.id === selectedParagraphId) ?? null,
+    () =>
+      bundle.paragraphs.find(
+        (paragraph) => paragraph.id === selectedParagraphId,
+      ) ?? null,
     [bundle.paragraphs, selectedParagraphId],
   );
 
@@ -87,7 +96,10 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
           <p className="text-zinc-600">This brief has no story blocks yet.</p>
         ) : (
           bundle.paragraphs.map((paragraph) => (
-            <section key={paragraph.id} className="border-l-2 border-zinc-200 pl-6">
+            <section
+              key={paragraph.id}
+              className="border-l-2 border-zinc-200 pl-6"
+            >
               <button
                 type="button"
                 onClick={() => setSelectedParagraphId(paragraph.id)}
@@ -111,9 +123,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
           aria-modal="true"
           aria-label="Story details"
         >
-          <div
-            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
-          >
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <h3 className="text-lg font-semibold text-zinc-900">
                 Story {selectedParagraph.position}
@@ -142,13 +152,21 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
                 {selectedParagraph.sources.map((source) => {
                   const url = source.source_url ?? source.canonical_url;
                   return (
-                    <li key={source.id} className="flex items-start gap-2 text-sm text-zinc-700">
+                    <li
+                      key={source.id}
+                      className="flex items-start gap-2 text-sm text-zinc-700"
+                    >
                       <SourceFavicon
                         faviconUrl={source.favicon_url}
                         title={source.title ?? url}
                         className="mt-0.5 h-4 w-4 rounded-full"
                       />
-                      <a href={url} target="_blank" rel="noreferrer" className="underline">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
                         {source.title?.trim() || url}
                       </a>
                     </li>

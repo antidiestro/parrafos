@@ -1,5 +1,8 @@
 import { appendRunEvent } from "@/lib/runs/persistence/events-repo";
-import { completeRunStage, startRunStage } from "@/lib/runs/persistence/stages-repo";
+import {
+  completeRunStage,
+  startRunStage,
+} from "@/lib/runs/persistence/stages-repo";
 import { persistBriefOutputForRun } from "@/lib/runs/process/publish-brief";
 import { isRunCancelled } from "@/lib/runs/process/shared";
 import type { RunMetadata } from "@/lib/runs/progress";
@@ -13,10 +16,14 @@ export async function runPersistBriefOutputStage(input: {
   const storySummaries = metadata.publish?.story_summaries ?? [];
   const briefParagraphs = metadata.publish?.brief_paragraphs ?? [];
   if (storySummaries.length === 0) {
-    throw new Error("Cannot persist brief output before story summaries exist.");
+    throw new Error(
+      "Cannot persist brief output before story summaries exist.",
+    );
   }
   if (briefParagraphs.length === 0) {
-    throw new Error("Cannot persist brief output before brief paragraphs exist.");
+    throw new Error(
+      "Cannot persist brief output before brief paragraphs exist.",
+    );
   }
 
   const attempt = await startRunStage(runId, "persist_brief_output");

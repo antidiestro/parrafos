@@ -21,9 +21,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-6 py-16 pb-24">
       <header className="mb-12 border-b border-zinc-200 pb-8">
-        <p className="text-sm text-zinc-600">
-          Hello, and welcome to Parrafos.
-        </p>
+        <p className="text-sm text-zinc-600">Hello, and welcome to Parrafos.</p>
         <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
           Parrafos
         </p>
