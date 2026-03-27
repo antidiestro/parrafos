@@ -42,6 +42,9 @@ type ArticleBodyByKey = Map<
   }
 >;
 
+const OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION =
+  "Adopt a strictly objective journalistic tone: eliminate value-laden adjectives, metaphors, and intensifiers. Limit yourself to reporting verifiable facts, actions, and direct quotes. Avoid interpreting intentions, predicting consequences, or labeling the severity of events. Specifically, avoid subjective Spanish terms such as: 'trágico', 'conmocionado', 'alarmante', 'agresivo', 'tormenta política', 'sistemáticamente', or 'razonable'.";
+
 const storyDetailSchema = z.object({
   detail_markdown: z.string().trim().min(120),
 });
@@ -279,6 +282,7 @@ export async function generateStorySummariesForRun(
       "7) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
       "8) Keep that skepticism evidence-based and non-conspiratorial.",
       "9) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+      `10) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
       `Story title/topic: ${cluster.title}`,
       cluster.selection_reason
         ? `Why this story was selected: ${cluster.selection_reason}`
@@ -370,6 +374,7 @@ export async function composeBriefParagraphsFromSummaries(
     "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts.",
     "Keep a skeptical and balanced tone: acknowledge possible source bias and potential agendas in official versions.",
     "Keep that tone cautious and evidence-based, not conspiratorial.",
+    OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
     "Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
     "Do not merge stories or move facts across story boundaries.",
     `Number of stories: ${storySummaries.length}`,
