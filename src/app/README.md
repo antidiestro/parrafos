@@ -2,7 +2,7 @@
 
 ## Purpose
 - Next.js App Router entrypoints (public pages).
-- Root layout (`layout.tsx`): site `metadata.title` is **Párrafos.com**; loads **STIX Two Text** from Google Fonts (`next/font/google`) as the default UI font (Latin + Latin extended subsets).
+- Root layout (`layout.tsx`): site `metadata.title` is **Párrafos**; loads **STIX Two Text** from Google Fonts (`next/font/google`) as the default UI font (Latin + Latin extended subsets).
 - Global base styles (`globals.css`): warm muted newsprint-style page background via `:root { --paper: #ebe6dc }` on `html` and `body` (components like source favicon rims can use `var(--paper)` to match).
 - Keep route-level concerns here: rendering, form wiring, server action invocation, and route handler input/output validation.
 
