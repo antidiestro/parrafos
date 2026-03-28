@@ -8,12 +8,6 @@ export function cleanHtmlForLLM(html: string): string {
   const content = $("body").html() ?? $.root().html() ?? "";
   const collapsed = content.replace(/\s+/g, " ").trim();
   const output = collapsed.slice(0, MAX_CHARS);
-  console.log(`[extract] ${new Date().toISOString()} cleanHtmlForLLM`, {
-    inputChars: html.length,
-    collapsedChars: collapsed.length,
-    outputChars: output.length,
-    truncated: collapsed.length > MAX_CHARS,
-  });
   return output;
 }
 

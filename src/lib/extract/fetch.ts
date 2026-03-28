@@ -17,27 +17,12 @@ export async function fetchHtmlWithRetries(
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      console.log(
-        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: attempt`,
-        {
-          url,
-          attempt: attempt + 1,
-          maxAttempts: retries + 1,
-          timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        },
-      );
       const result = await fetchHtml(url, {
         timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       });
 
       console.log(
-        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: success`,
-        {
-          url,
-          finalUrl: result.finalUrl,
-          status: result.status,
-          htmlChars: result.html.length,
-        },
+        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: success ${result.finalUrl} status=${result.status}`,
       );
 
       return result;
@@ -45,12 +30,7 @@ export async function fetchHtmlWithRetries(
       const message = error instanceof Error ? error.message : String(error);
       lastError = error instanceof Error ? error : new Error("Fetch failed");
       console.log(
-        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: attempt failed`,
-        {
-          url,
-          attempt: attempt + 1,
-          error: message,
-        },
+        `[extract] ${new Date().toISOString()} fetchHtmlWithRetries: failed ${url} — ${message}`,
       );
       if (attempt < retries) {
         await new Promise((resolve) =>

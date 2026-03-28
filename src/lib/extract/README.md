@@ -29,7 +29,7 @@
 - Retry behavior can be overridden by callers. Run pipeline stages currently set `retries: 0` for fail-fast fetch attempts while still using best-effort item-level error handling.
 
 ## Worker Logging (Observability)
-- `fetchHtmlWithRetries` logs each attempt, failures, and the final status/url (without dumping full HTML).
+- `fetchHtmlWithRetries` logs a single-line success (`finalUrl`, HTTP status) or failure (requested URL and error message) per try; it does not dump response bodies or structured metadata blobs.
 - `cleanTextForLLM` logs input/collapsed/output character counts and truncation.
 
 ## Common Changes
