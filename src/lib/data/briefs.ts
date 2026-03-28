@@ -20,9 +20,31 @@ export type LatestBriefBundle = {
     BriefSectionRow & {
       story: StoryRow;
       sources: BriefSectionSourceRow[];
+      /** Long-form `summary` from structured story JSON (`stories.markdown`), for sidebar. */
+      longSummaryText: string | null;
     }
   >;
 };
+
+/** Defensive extract of pipeline `summary` field; null if JSON missing or invalid. */
+function longSummaryTextFromStoryMarkdown(storyMarkdown: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(storyMarkdown);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("summary" in parsed)
+    ) {
+      return null;
+    }
+    const summary = (parsed as { summary: unknown }).summary;
+    if (typeof summary !== "string") return null;
+    const trimmed = summary.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefBundle | null> {
   const supabase = createSupabaseServiceClient();
@@ -176,6 +198,7 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
         ...section,
         story,
         sources: sourceRows,
+        longSummaryText: longSummaryTextFromStoryMarkdown(story.markdown),
       };
     })
     .filter(
@@ -184,6 +207,7 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
       ): section is BriefSectionRow & {
         story: StoryRow;
         sources: BriefSectionSourceRow[];
+        longSummaryText: string | null;
       } => Boolean(section),
     );
 

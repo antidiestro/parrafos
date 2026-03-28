@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { LatestBriefBundle } from "@/lib/data/briefs";
-import { SourceFavicon, StorySidebar } from "@/components/story-sidebar";
 import { StoryMarkdown } from "@/components/story-markdown";
+import { SourceFavicon, StorySidebar } from "@/components/story-sidebar";
+import type { LatestBriefBundle } from "@/lib/data/briefs";
 
 type Section = LatestBriefBundle["sections"][number];
 type SourceRow = Section["sources"][number];
@@ -56,7 +56,7 @@ function SourcePill({
     <button
       type="button"
       onClick={onClick}
-      className="group mt-3 inline-flex cursor-pointer items-center gap-2 p-0 text-xs font-sans text-zinc-700"
+      className="group inline-flex shrink-0 cursor-pointer items-center gap-2 p-0 text-xs font-sans text-zinc-700"
     >
       <span className="inline-flex items-center gap-1 [&_.relative>:first-child]:opacity-75 [&_.relative>:first-child]:transition-[filter,opacity] [&_.relative>:first-child]:duration-150 group-hover:[&_.relative>:first-child]:opacity-100 group-hover:[&_.relative>:first-child]:grayscale-0">
         {displaySources.map((source) => (
@@ -97,7 +97,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
 
   return (
     <>
-      <div className="space-y-16">
+      <div className="space-y-20">
         {bundle.sections.length === 0 ? (
           <p className="text-zinc-600">This brief has no sections yet.</p>
         ) : (
@@ -105,11 +105,21 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
             <section key={section.id}>
               <div className="w-full text-left">
                 <StoryMarkdown markdown={section.markdown} />
+                <div className="mt-4 flex w-full items-center gap-4">
+                  <button
+                    type="button"
+                    lang="es"
+                    onClick={() => setSelectedSectionId(section.id)}
+                    className="font-medium shrink-0 rounded-md bg-stone-500/30 px-3 py-1.5 cursor-pointer font-sans text-sm text-stone-800 transition-colors hover:bg-stone-800 hover:text-stone-200"
+                  >
+                    Leer más
+                  </button>
+                  <SourcePill
+                    section={section}
+                    onClick={() => setSelectedSectionId(section.id)}
+                  />
+                </div>
               </div>
-              <SourcePill
-                section={section}
-                onClick={() => setSelectedSectionId(section.id)}
-              />
             </section>
           ))
         )}
@@ -118,6 +128,7 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
       {selectedSection ? (
         <StorySidebar
           key={selectedSection.id}
+          longSummaryText={selectedSection.longSummaryText}
           sources={selectedSection.sources}
           onClose={() => setSelectedSectionId(null)}
         />

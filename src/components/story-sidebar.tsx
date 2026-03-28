@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { StoryMarkdown } from "@/components/story-markdown";
 import type { BriefSectionSourceRow } from "@/lib/data/briefs";
 
 const UTM_SOURCE = "parrafos.com";
@@ -55,11 +56,16 @@ export function SourceFavicon({
 }
 
 export type StorySidebarProps = {
+  longSummaryText: string | null;
   sources: BriefSectionSourceRow[];
   onClose: () => void;
 };
 
-export function StorySidebar({ sources, onClose }: StorySidebarProps) {
+export function StorySidebar({
+  longSummaryText,
+  sources,
+  onClose,
+}: StorySidebarProps) {
   const [uiOpen, setUiOpen] = useState(false);
   const exitPendingRef = useRef(false);
   const finishedRef = useRef(false);
@@ -129,7 +135,7 @@ export function StorySidebar({ sources, onClose }: StorySidebarProps) {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label="Fuentes"
+        aria-label="Detalle y fuentes"
         onTransitionEnd={handleAsideTransitionEnd}
         className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-[var(--paper)] shadow-2xl transition-transform duration-300 ease-out ${
           uiOpen ? "translate-x-0" : "translate-x-full"
@@ -145,43 +151,61 @@ export function StorySidebar({ sources, onClose }: StorySidebarProps) {
           </button>
         </header>
 
-        <ul className="min-h-0 flex-1 overflow-y-auto px-3 py-4 font-sans">
-          {sources.map((source) => {
-            const rawUrl = source.source_url ?? source.canonical_url;
-            const href = hrefWithUtmSource(rawUrl);
-            const titleText =
-              source.title?.trim() || rawUrl || "Sin título";
-            return (
-              <li
-                key={source.id}
-                className="border-b border-zinc-200/80 py-3 last:border-b-0"
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          {longSummaryText ? (
+            <>
+              <StoryMarkdown
+                markdown={longSummaryText}
+                variant="compact"
+              />
+              <div
+                className="mt-4 border-t border-zinc-200 pt-3 pb-1"
+                role="presentation"
               >
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex gap-3 rounded-lg p-2 outline-none transition-colors hover:bg-zinc-100/80 focus-visible:ring-2 focus-visible:ring-zinc-400"
+                <p className="font-sans text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Fuentes
+                </p>
+              </div>
+            </>
+          ) : null}
+          <ul className="font-sans">
+            {sources.map((source) => {
+              const rawUrl = source.source_url ?? source.canonical_url;
+              const href = hrefWithUtmSource(rawUrl);
+              const titleText =
+                source.title?.trim() || rawUrl || "Sin título";
+              return (
+                <li
+                  key={source.id}
+                  className="border-b border-zinc-200/70 py-1.5 last:border-b-0"
                 >
-                  <SourceFavicon
-                    faviconUrl={source.favicon_url}
-                    title={titleText}
-                    className="mt-0.5 h-9 w-9 rounded-lg border border-zinc-200 bg-white object-contain p-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-snug text-zinc-900 group-hover:underline">
-                      {titleText}
-                    </p>
-                    {source.publisher_name ? (
-                      <p className="mt-0.5 text-xs text-zinc-500">
-                        {source.publisher_name}
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex gap-2 rounded-md py-0.5 pl-0.5 pr-1 outline-none transition-colors hover:bg-zinc-100/80 focus-visible:ring-2 focus-visible:ring-zinc-400"
+                  >
+                    <SourceFavicon
+                      faviconUrl={source.favicon_url}
+                      title={titleText}
+                      className="mt-0.5 h-6 w-6 shrink-0 rounded border border-zinc-200 bg-white object-contain p-px"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-xs font-medium leading-snug text-zinc-900 group-hover:underline">
+                        {titleText}
                       </p>
-                    ) : null}
-                  </div>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+                      {source.publisher_name ? (
+                        <p className="mt-0.5 truncate text-[11px] leading-tight text-zinc-500">
+                          {source.publisher_name}
+                        </p>
+                      ) : null}
+                    </div>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </aside>
     </div>
   );
