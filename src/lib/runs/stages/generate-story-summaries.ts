@@ -20,6 +20,7 @@ function normalizeStorySummaryStrings(
 ): StorySummaryJson {
   return {
     ...value,
+    story_title: decodeHtmlEntities(value.story_title).trim(),
     summary: decodeHtmlEntities(value.summary).trim(),
     latest_development: decodeHtmlEntities(value.latest_development).trim(),
     timeline: value.timeline.map((item) => ({
@@ -178,15 +179,16 @@ export async function generateStorySummaries(input: {
       "6) `latest_development_at` must equal the `timestamp` of the timeline entry where is_latest is true (use null for both when timing is unknown).",
       "7) `key_facts`: each item must be a detailed fact in Spanish (about 1–3 sentences, minimum ~80 characters typical). Include who did what, where relevant places, figures, institutional roles, and dates when the sources give them. One main claim per item; no duplicates; no opinions.",
       "8) `quotes`: only direct quotes from the sources. Every object must include `speaker` (short name) and `speaker_context` (official role, political party, ministry, or affiliation as grounded in the articles). Use an empty array if none.",
-      "9) Set `story_id` and `story_title` exactly as given below (do not change them).",
-      `10) Set \`as_of\` exactly to: ${referenceNowIso}`,
-      "11) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
-      "12) Keep that skepticism evidence-based and non-conspiratorial.",
-      "13) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
-      `14) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
+      "9) Set `story_id` exactly as given below (do not change it).",
+      "10) Write `story_title` yourself: a short neutral Spanish headline (at most 200 characters) that fits the sources. Do not copy any article headline, title hint, or the cluster working title verbatim.",
+      `11) Set \`as_of\` exactly to: ${referenceNowIso}`,
+      "12) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
+      "13) Keep that skepticism evidence-based and non-conspiratorial.",
+      "14) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+      `15) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
       `Reference date/time for recency ("now"): ${referenceNowIso}.`,
       `story_id (cluster id): ${cluster.id}`,
-      `story_title: ${cluster.title}`,
+      `Cluster working title (context only; do not paste into story_title): ${cluster.title}`,
       cluster.selectionReason
         ? `Why this story was selected: ${cluster.selectionReason}`
         : null,
@@ -220,13 +222,12 @@ export async function generateStorySummaries(input: {
     const finalPayload = simpleStorySummarySchema.parse({
       ...aligned,
       story_id: cluster.id,
-      story_title: cluster.title,
       as_of: referenceNowIso,
     });
     const detailMarkdown = JSON.stringify(finalPayload);
     summaries.push({
       clusterId: cluster.id,
-      title: cluster.title,
+      title: finalPayload.story_title,
       detailMarkdown,
     });
     logLine("story_summary: completed", {

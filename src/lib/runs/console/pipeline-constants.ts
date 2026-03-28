@@ -155,7 +155,7 @@ export const simpleStorySummarySchema = z
       .min(1)
       .max(200)
       .describe(
-        "Short neutral headline-style title in Spanish. Clear topic, no opinion or hype.",
+        "Model-written short neutral headline in Spanish from the article texts (not copied from clustering or source headlines). Clear topic, no opinion or hype.",
       ),
 
     as_of: z
