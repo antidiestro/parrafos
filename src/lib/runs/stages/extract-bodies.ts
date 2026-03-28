@@ -11,6 +11,7 @@ import type {
   ExtractedArticle,
   PrefetchedArticle,
 } from "@/lib/runs/console/types";
+import { sourceKeyFor } from "@/lib/runs/console/utils";
 
 async function articleExists(
   publisherId: string,
@@ -27,8 +28,8 @@ async function articleExists(
   if (error) throw new Error(error.message);
   const exists = Boolean(data);
   logLine("extract: existing article lookup finished", {
-    publisherId,
-    canonicalUrl,
+    pub: publisherId,
+    key: sourceKeyFor(publisherId, canonicalUrl),
     exists,
   });
   return exists;
@@ -59,17 +60,17 @@ export async function extractBodies(input: {
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
     logLine("extract: item started", {
-      current: index + 1,
+      n: index + 1,
       total: candidates.length,
-      publisherId: candidate.publisherId,
+      pub: candidate.publisherId,
       url: candidate.url,
     });
     const exists = await articleExists(candidate.publisherId, candidate.canonicalUrl);
     if (exists) {
       skippedExisting += 1;
       logLine("extract: skipped existing article", {
-        publisherId: candidate.publisherId,
-        canonicalUrl: candidate.canonicalUrl,
+        pub: candidate.publisherId,
+        key: sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
       });
       continue;
     }
@@ -102,15 +103,15 @@ export async function extractBodies(input: {
         bodyText: extraction.body_text,
       });
       logLine("extract: success", {
-        publisherId: candidate.publisherId,
-        canonicalUrl: candidate.canonicalUrl,
+        pub: candidate.publisherId,
+        key: sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
         bodyChars: extraction.body_text.length,
       });
     } catch (error) {
       logLine("extract: failed", {
-        publisherId: candidate.publisherId,
-        canonicalUrl: candidate.canonicalUrl,
-        error: error instanceof Error ? error.message : String(error),
+        pub: candidate.publisherId,
+        key: sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
+        err: error instanceof Error ? error.message : String(error),
       });
     }
   }

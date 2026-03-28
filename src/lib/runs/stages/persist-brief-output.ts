@@ -23,8 +23,8 @@ async function loadArticleIdsBySource(
   for (const [publisherId, canonicalSet] of urlsByPublisher.entries()) {
     const canonicalUrls = Array.from(canonicalSet);
     logLine("persist: article ID query started", {
-      publisherId,
-      canonicalUrls: canonicalUrls.length,
+      pub: publisherId,
+      urls: canonicalUrls.length,
     });
     const { data, error } = await supabase
       .from("articles")
@@ -36,8 +36,8 @@ async function loadArticleIdsBySource(
       map.set(`${row.publisher_id}::${row.canonical_url}`, row.id);
     }
     logLine("persist: article ID query completed", {
-      publisherId,
-      rowsReturned: (data ?? []).length,
+      pub: publisherId,
+      rows: (data ?? []).length,
     });
   }
   logLine("persist: load article IDs completed", { mappedArticleIds: map.size });

@@ -27,10 +27,10 @@ export async function runConsoleWorkflow() {
   const startedAt = Date.now();
   let runId: string | null = null;
   logLine("console workflow started", {
-    extractModel: RUN_EXTRACT_MODEL,
-    clusterModel: RUN_CLUSTER_MODEL,
-    relevanceModel: RUN_RELEVANCE_MODEL,
-    briefModel: RUN_BRIEF_MODEL,
+    extract: RUN_EXTRACT_MODEL,
+    cluster: RUN_CLUSTER_MODEL,
+    relevance: RUN_RELEVANCE_MODEL,
+    brief: RUN_BRIEF_MODEL,
   });
 
   try {
@@ -108,7 +108,7 @@ export async function runConsoleWorkflow() {
     } catch (persistDiscoveryError) {
       logLine("runs: persist discovery candidates failed; brief already published", {
         runId,
-        error:
+        err:
           persistDiscoveryError instanceof Error
             ? persistDiscoveryError.message
             : String(persistDiscoveryError),

@@ -1,7 +1,7 @@
 # `src/lib/runs`
 
 ## Purpose
-- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds).
+- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds). Stdout from `npm run generate-brief` stays **event-granular** (including per-item lines where the pipeline already logs each step), but `console/logging.ts` formats context compactly: short timestamps, `[stage] …` markers, truncated strings/URLs, and **no large nested JSON blobs** (errors collapse to a short message, typically `code: message` when present).
 - **Stages:** `stages/` implements each step (discovery, prefetch, cluster, select, extract, upsert, summaries, compose brief sections, persist brief output, persist discovery snapshot on success, run records).
 - **Model config:** `constants.ts` — model IDs and recency windows used by orchestrator and stages.
 

@@ -15,8 +15,8 @@
 - Run records are created and finalized in `lib/runs/stages/run-records.ts` (`running` → `completed`/`failed`).
 
 ## Logging
-- Console workflow logs are emitted to stdout with stage dividers and structured metadata payloads.
-- Logs include stage transitions and per-item outcomes (discovered/skipped, fetched+parsed, upserted/failed).
+- Console workflow logs are emitted to stdout as **single-line** entries: short timestamps, `[stage] …` markers, and compact `key=value` context (truncated strings/URLs; errors as short messages, not nested JSON).
+- Granularity is unchanged: stage transitions and per-item outcomes (discovered/skipped, fetched+parsed, upserted/failed) still appear when those events occur.
 
 ## Common Changes
 - Console workflow behavior: update `src/lib/runs/console/` and `src/lib/runs/stages/`.

@@ -70,8 +70,8 @@ async function loadArticleBodiesBySource(
   for (const [publisherId, canonicalSet] of urlsByPublisher) {
     const canonicalUrls = Array.from(canonicalSet);
     logLine("publish: article body query started", {
-      publisherId,
-      canonicalUrls: canonicalUrls.length,
+      pub: publisherId,
+      urls: canonicalUrls.length,
     });
     const { data, error } = await supabase
       .from("articles")
@@ -89,8 +89,8 @@ async function loadArticleBodiesBySource(
       });
     }
     logLine("publish: article body query completed", {
-      publisherId,
-      rowsReturned: (data ?? []).length,
+      pub: publisherId,
+      rows: (data ?? []).length,
     });
   }
   logLine("publish: load article bodies completed", { withBodyCount: out.size });
@@ -118,9 +118,9 @@ export async function generateStorySummaries(input: {
   for (let index = 0; index < sortedClusters.length; index += 1) {
     const cluster = sortedClusters[index];
     logLine("story_summary: started", {
-      current: index + 1,
+      n: index + 1,
       total: sortedClusters.length,
-      clusterId: cluster.id,
+      cluster: cluster.id,
       title: cluster.title,
     });
 
@@ -233,7 +233,7 @@ export async function generateStorySummaries(input: {
       detailMarkdown,
     });
     logLine("story_summary: completed", {
-      clusterId: cluster.id,
+      cluster: cluster.id,
       chars: detailMarkdown.length,
     });
   }

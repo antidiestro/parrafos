@@ -52,10 +52,8 @@ async function loadExistingMetadataByCanonical(
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     logLine("prefetch: existing metadata lookup chunk started", {
-      chunkIndex: i + 1,
-      chunkCount: chunks.length,
-      chunkSize: chunk.length,
-      encodedChars: chunk.reduce((acc, url) => acc + encodeURIComponent(url).length, 0),
+      chunk: `${i + 1}/${chunks.length}`,
+      size: chunk.length,
     });
     const { data, error } = await supabase
       .from("articles")
@@ -63,17 +61,10 @@ async function loadExistingMetadataByCanonical(
       .in("canonical_url", chunk);
     if (error) {
       logLine("prefetch: existing metadata lookup chunk failed", {
-        chunkIndex: i + 1,
-        chunkCount: chunks.length,
-        chunkSize: chunk.length,
-        canonicalUrlSample: chunk.slice(0, 5),
-        error: {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-          status: (error as { status?: number }).status,
-        },
+        chunk: `${i + 1}/${chunks.length}`,
+        size: chunk.length,
+        code: error.code,
+        msg: error.message,
       });
       throw new Error(
         `Existing metadata lookup failed (chunk ${i + 1}/${chunks.length}, size ${chunk.length}): ${error.message}`,
@@ -88,8 +79,8 @@ async function loadExistingMetadataByCanonical(
       });
     }
     logLine("prefetch: existing metadata lookup chunk completed", {
-      chunkIndex: i + 1,
-      rowsReturned: (data ?? []).length,
+      chunk: `${i + 1}/${chunks.length}`,
+      rows: (data ?? []).length,
     });
   }
   logLine("prefetch: load existing metadata completed", {
@@ -176,9 +167,9 @@ export async function prefetchMetadata(input: {
         return row;
       } catch (error) {
         logLine("prefetch: candidate failed", {
+          pub: candidate.publisherId,
           url: candidate.url,
-          publisherId: candidate.publisherId,
-          error: error instanceof Error ? error.message : String(error),
+          err: error instanceof Error ? error.message : String(error),
         });
         return null;
       }

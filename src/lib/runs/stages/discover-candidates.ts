@@ -18,8 +18,8 @@ export async function discoverCandidates(): Promise<CandidateSource[]> {
     publishers.length,
     async (publisher) => {
       logLine("publisher discovery: started", {
-        publisherId: publisher.id,
-        publisherName: publisher.name,
+        pub: publisher.id,
+        name: publisher.name,
       });
       try {
         const home = await fetchHtmlWithRetries(publisher.base_url, { retries: 0 });
@@ -45,14 +45,14 @@ export async function discoverCandidates(): Promise<CandidateSource[]> {
           publishedAt: null,
         }));
         logLine("publisher discovery: completed", {
-          publisherId: publisher.id,
+          pub: publisher.id,
           candidates: rows.length,
         });
         return rows;
       } catch (error) {
         logLine("publisher discovery: failed", {
-          publisherId: publisher.id,
-          error: error instanceof Error ? error.message : String(error),
+          pub: publisher.id,
+          err: error instanceof Error ? error.message : String(error),
         });
         return [];
       }
