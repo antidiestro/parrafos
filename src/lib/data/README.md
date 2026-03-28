@@ -4,7 +4,7 @@
 - Centralized query layer for read operations used by pages and scripts.
 
 ## Key Files
-- `briefs.ts`: latest published brief + ordered `brief_sections` (one markdown section per story), hydrated with linked stories and source metadata.
+- `briefs.ts`: latest published brief + ordered `brief_sections` (one markdown section per story), hydrated with linked stories and source metadata. Each linked story’s `markdown` / `detail_markdown` columns hold the same **stringified structured story-summary JSON** produced by the pipeline (not prose markdown).
 - `publishers.ts`: list configured publishers.
 
 ## Contracts and Invariants

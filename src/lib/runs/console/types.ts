@@ -28,6 +28,7 @@ export type ClusterDraft = {
 export type StorySummaryRow = {
   clusterId: string;
   title: string;
+  /** Structured story summary as JSON text (stored in `stories.markdown` and `stories.detail_markdown`). */
   detailMarkdown: string;
 };
 

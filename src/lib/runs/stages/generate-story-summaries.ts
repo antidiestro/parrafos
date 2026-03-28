@@ -3,8 +3,9 @@ import { RUN_BRIEF_MODEL } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import {
   OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
-  storyDetailResponseJsonSchema,
-  storyDetailSchema,
+  simpleStorySummaryResponseJsonSchema,
+  simpleStorySummarySchema,
+  type StorySummaryJson,
 } from "@/lib/runs/console/pipeline-constants";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import type {
@@ -13,6 +14,27 @@ import type {
   StorySummaryRow,
 } from "@/lib/runs/console/types";
 import { decodeHtmlEntities, toHoursAgo } from "@/lib/runs/console/utils";
+
+function normalizeStorySummaryStrings(
+  value: StorySummaryJson,
+): StorySummaryJson {
+  return {
+    ...value,
+    summary: decodeHtmlEntities(value.summary).trim(),
+    latest_development: decodeHtmlEntities(value.latest_development).trim(),
+    timeline: value.timeline.map((item) => ({
+      ...item,
+      summary: decodeHtmlEntities(item.summary).trim(),
+    })),
+    key_facts: value.key_facts.map((f) => decodeHtmlEntities(f).trim()),
+    quotes: value.quotes.map((q) => ({
+      ...q,
+      speaker: decodeHtmlEntities(q.speaker).trim(),
+      speaker_context: decodeHtmlEntities(q.speaker_context).trim(),
+      text: decodeHtmlEntities(q.text).trim(),
+    })),
+  };
+}
 
 async function loadArticleBodiesBySource(
   sources: CandidateSource[],
@@ -149,20 +171,25 @@ export async function generateStorySummaries(input: {
     }
 
     const prompt = [
-      "Write an in-depth story summary in Markdown with a clear journalistic structure.",
+      "You condense multiple news articles about the same story into ONE structured JSON object.",
       "Instructions:",
-      "1) Output MUST be in Spanish.",
-      "2) Start with a short opening paragraph (no heading) that works like a lede.",
-      "3) Organize the rest with a clear structure (short sections, bullets, or both) so it is easy to scan.",
-      "4) You may include inline Markdown links using only source URLs from the input when they add context.",
-      "5) Do not invent or alter URLs.",
-      "6) Do not invent claims; use only the provided source material.",
-      "7) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
-      "8) Keep that skepticism evidence-based and non-conspiratorial.",
-      "9) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
-      `10) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
-      `11) Reference date/time for writing criteria: ${referenceNowIso}. Use this timestamp as "now" when assessing recency and temporal context.`,
-      `Story title/topic: ${cluster.title}`,
+      "1) Output MUST match the required JSON shape. All narrative string fields MUST be in Spanish.",
+      "2) Use only the provided article texts. Do not invent facts, quotes, or dates.",
+      "3) In `summary`, synthesize all sources into one coherent account; lead with the newest verified development, then context.",
+      "4) `timeline` must list main developments from oldest to newest. Exactly one item must have is_latest=true.",
+      "5) `latest_development` must describe that same newest item in one sentence.",
+      "6) `latest_development_at` must equal the `timestamp` of the timeline entry where is_latest is true (use null for both when timing is unknown).",
+      "7) `key_facts`: each item must be a detailed fact in Spanish (about 1–3 sentences, minimum ~80 characters typical). Include who did what, where relevant places, figures, institutional roles, and dates when the sources give them. One main claim per item; no duplicates; no opinions.",
+      "8) `quotes`: only direct quotes from the sources. Every object must include `speaker` (short name) and `speaker_context` (official role, political party, ministry, or affiliation as grounded in the articles). Use an empty array if none.",
+      "9) Set `story_id` and `story_title` exactly as given below (do not change them).",
+      `10) Set \`as_of\` exactly to: ${referenceNowIso}`,
+      "11) Keep a skeptical and balanced tone: acknowledge source bias and possible institutional agendas.",
+      "12) Keep that skepticism evidence-based and non-conspiratorial.",
+      "13) Use proper Spanish orthography (UTF-8), including accents and ñ; never replace accented characters with ASCII placeholders, numbers, or entities.",
+      `14) ${OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION}`,
+      `Reference date/time for recency ("now"): ${referenceNowIso}.`,
+      `story_id (cluster id): ${cluster.id}`,
+      `story_title: ${cluster.title}`,
       cluster.selectionReason
         ? `Why this story was selected: ${cluster.selectionReason}`
         : null,
@@ -174,25 +201,40 @@ export async function generateStorySummaries(input: {
         : null,
       "Relevant sources (full texts), each delimited by ---:",
       sourceTexts.map((text) => `---\n${text}\n---`).join("\n"),
-      "Write the detailed summary now.",
+      "Return the structured story summary JSON now.",
     ]
       .filter(Boolean)
       .join("\n");
 
-    const generated = await generateGeminiJson(prompt, storyDetailSchema, {
+    const generated = await generateGeminiJson(prompt, simpleStorySummarySchema, {
       model: RUN_BRIEF_MODEL,
       nativeStructuredOutput: {
-        responseJsonSchema: storyDetailResponseJsonSchema,
+        responseJsonSchema: simpleStorySummaryResponseJsonSchema,
       },
     });
+    const normalized = normalizeStorySummaryStrings(generated);
+    const latestTimeline = normalized.timeline.find((item) => item.is_latest);
+    const aligned = {
+      ...normalized,
+      latest_development_at: latestTimeline
+        ? latestTimeline.timestamp
+        : normalized.latest_development_at,
+    };
+    const finalPayload = simpleStorySummarySchema.parse({
+      ...aligned,
+      story_id: cluster.id,
+      story_title: cluster.title,
+      as_of: referenceNowIso,
+    });
+    const detailMarkdown = JSON.stringify(finalPayload);
     summaries.push({
       clusterId: cluster.id,
       title: cluster.title,
-      detailMarkdown: decodeHtmlEntities(generated.detail_markdown).trim(),
+      detailMarkdown,
     });
     logLine("story_summary: completed", {
       clusterId: cluster.id,
-      chars: generated.detail_markdown.length,
+      chars: detailMarkdown.length,
     });
   }
   logLine("generate_story_summaries: done", { summaries: summaries.length });
