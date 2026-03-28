@@ -37,7 +37,6 @@ export const relevantStoriesSchema = z.object({
       z.object({
         cluster_id: z.string().trim().min(1),
         selection_reason: z.string().trim().min(1).max(220),
-        latest_development: z.string().trim().min(1).max(280),
       }),
     )
     .max(MAX_RELEVANT_STORIES),
@@ -53,9 +52,8 @@ export const relevantStoriesResponseJsonSchema = {
         properties: {
           cluster_id: { type: "string" },
           selection_reason: { type: "string" },
-          latest_development: { type: "string" },
         },
-        required: ["cluster_id", "selection_reason", "latest_development"],
+        required: ["cluster_id", "selection_reason"],
       },
       maxItems: MAX_RELEVANT_STORIES,
     },

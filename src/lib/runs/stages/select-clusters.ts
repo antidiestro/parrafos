@@ -106,7 +106,7 @@ export async function selectClusters(input: {
       "Deprioritize repetitive, low-consequence, or evergreen items when stronger updates exist.",
       "Ignore routine day-to-day crime coverage unless it has extraordinary national or institutional impact.",
       "Sports stories are only acceptable when they are clearly history-making (for example, landmark championship wins, unprecedented records, or major structural milestones).",
-      "For each selected cluster, return a short selection_reason and latest_development sentence.",
+      "For each selected cluster, return a short selection_reason.",
       "Stories:",
       JSON.stringify(evidence),
     ].join("\n"),

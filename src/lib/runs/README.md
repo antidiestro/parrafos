@@ -20,7 +20,7 @@
 - Candidate URLs are canonicalized and deduplicated before extraction.
 - Metadata prefetch reuses existing article metadata by canonical URL when available.
 - Clustering assigns every candidate source to exactly one run-scoped story cluster; singleton clusters are allowed, and multi-outlet groupings are kept when the model merges clearly related coverage.
-- Relevance selection (`select-clusters`) only sends **multi-source** clusters (two or more articles) to the model; singleton clusters never enter that LLM call.
+- Relevance selection (`select-clusters`) only sends **multi-source** clusters (two or more articles) to the model; singleton clusters never enter that LLM call. Structured output is `selected_clusters` with `cluster_id` and `selection_reason` per item.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
 
 ## Common Changes
