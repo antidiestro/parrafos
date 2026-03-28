@@ -6,4 +6,4 @@ node_modules/
 .DS_Store
 supabase/.temp/
 *.tsbuildinfo
-.next-env.d.ts
+next-env.d.ts
