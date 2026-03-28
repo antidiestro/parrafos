@@ -13,7 +13,7 @@
 - Sorting/default limits are part of the API contract:
   - briefs by `published_at`/`created_at`
   - publishers by `name`
-- `getLatestPublishedBriefWithStories` reads from `brief_sections` for homepage section order, then joins linked stories, `story_articles`/`articles` (including `publisher_id`), and `publishers.name` so each source row has favicon URL, title, URLs, and **publisher_name** for the homepage sources sidebar.
+- `getLatestPublishedBriefWithStories` reads from `brief_sections` for homepage section order (relevance selection order from the publish pipeline), then joins linked stories, `story_articles`/`articles` (including `publisher_id`), and `publishers.name` so each source row has favicon URL, title, URLs, and **publisher_name** for the homepage sources sidebar. `story_articles` rows are ordered by `article_id` for a stable sidebar list.
 
 ## Common Changes
 - Add a new read model: create a new file in `data/` and keep output shape typed.

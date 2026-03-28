@@ -73,7 +73,8 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
   const { data: storyArticles, error: storyArticlesError } = await supabase
     .from("story_articles")
     .select("story_id,article_id")
-    .in("story_id", storyIds);
+    .in("story_id", storyIds)
+    .order("article_id", { ascending: true });
   if (storyArticlesError) {
     throw new Error(storyArticlesError.message);
   }

@@ -11,8 +11,9 @@
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits.
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
 - `stages/persist-discovery-candidates.ts`: after a **successful** pipeline, inserts the full initial discovery set into `run_discovery_candidates` (deduplicated sorted canonical URLs per run; not the selected-cluster subset).
-- `stages/generate-story-summaries.ts`: LLM step that emits one **structured JSON** object per story (Zod: `simpleStorySummarySchema`); `quotes` include **`speaker_context`** (role/affiliation); **`key_facts`** are longer-form detailed items. The stringified JSON is stored in `stories.markdown` / `detail_markdown` and passed to compose.
-- `stages/compose-brief-sections.ts`: LLM step that reads those JSON payloads and emits one markdown section per story (~500-character paragraph with a bold lead-in title); structured output uses a `sections` array.
+- `stages/generate-story-summaries.ts`: LLM step that emits one **structured JSON** object per story (Zod: `simpleStorySummarySchema`); `quotes` include **`speaker_context`** (role/affiliation); **`key_facts`** are longer-form detailed items. The stringified JSON is stored in `stories.markdown` / `detail_markdown` and passed to compose. Summaries run in **relevance selection order** (same order as `select-clusters` output), so published `brief_sections` and `story_articles` stay aligned with each story.
+- `stages/compose-brief-sections.ts`: LLM step that reads those JSON payloads and emits one markdown section per story (~500-character paragraph with a bold lead-in title); structured output uses a `sections` array (same order as the summaries).
+- `stages/persist-brief-output.ts`: writes `story_articles` by resolving each persisted story’s `clusterId` from `storySummaries`, not by parallel index into `selectedClusters`, so links cannot drift if array ordering ever diverges.
 
 ## Run lifecycle
 - The console workflow inserts a `runs` row with `status = running` **before** `discover_candidates`, so discovery can attach to `run_id`. `runs.started_at` therefore includes discovery duration.

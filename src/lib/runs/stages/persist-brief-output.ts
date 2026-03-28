@@ -116,9 +116,20 @@ export async function persistBriefOutput(input: {
   );
   const articleIdBySource = await loadArticleIdsBySource(allSelectedSources);
 
+  const clusterById = new Map<string, ClusterDraft>();
+  for (const cluster of input.selectedClusters) {
+    clusterById.set(cluster.id, cluster);
+  }
+
   const storyArticleRows: Array<{ story_id: string; article_id: string }> = [];
-  for (let index = 0; index < input.selectedClusters.length; index += 1) {
-    const cluster = input.selectedClusters[index];
+  for (let index = 0; index < input.storySummaries.length; index += 1) {
+    const summary = input.storySummaries[index];
+    const cluster = clusterById.get(summary.clusterId);
+    if (!cluster) {
+      throw new Error(
+        `Persist: story summary references cluster ${summary.clusterId} not found in selectedClusters.`,
+      );
+    }
     const storyId = storyIdByPosition.get(index + 1);
     if (!storyId) continue;
     const seen = new Set<string>();

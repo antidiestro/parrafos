@@ -102,10 +102,7 @@ export async function generateStorySummaries(input: {
   sourceByKey: Map<string, CandidateSource>;
 }): Promise<StorySummaryRow[]> {
   divider("generate_story_summaries");
-  const sortedClusters = input.selectedClusters
-    .slice()
-    .sort((a, b) => b.sourceKeys.length - a.sourceKeys.length);
-  const allSelectedSources = sortedClusters.flatMap((cluster) =>
+  const allSelectedSources = input.selectedClusters.flatMap((cluster) =>
     cluster.sourceKeys
       .map((key) => input.sourceByKey.get(key))
       .filter((value): value is CandidateSource => Boolean(value)),
@@ -115,11 +112,11 @@ export async function generateStorySummaries(input: {
   const referenceNowIso = new Date(nowMs).toISOString();
 
   const summaries: StorySummaryRow[] = [];
-  for (let index = 0; index < sortedClusters.length; index += 1) {
-    const cluster = sortedClusters[index];
+  for (let index = 0; index < input.selectedClusters.length; index += 1) {
+    const cluster = input.selectedClusters[index];
     logLine("story_summary: started", {
       n: index + 1,
-      total: sortedClusters.length,
+      total: input.selectedClusters.length,
       cluster: cluster.id,
       title: cluster.title,
     });
