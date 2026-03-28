@@ -3,8 +3,6 @@ import Image from "next/image";
 import { BriefViewer } from "@/components/brief-viewer";
 import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
 
-export const dynamic = "force-dynamic";
-
 /** Wall-clock interpretation for homepage copy (Chile). */
 const BRIEF_DISPLAY_TIMEZONE = "America/Santiago";
 

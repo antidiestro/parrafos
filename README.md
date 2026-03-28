@@ -2,7 +2,7 @@
 
 TypeScript library code and **Supabase** migrations for Parrafos: editorial **briefs** and **stories**, plus an extraction pipeline (**publishers**, **runs**, **articles**) with row-level security.
 
-A **Next.js** app in `src/app` reads the database with **server-only** Supabase (`SUPABASE_SERVICE_ROLE_KEY`); the public homepage shows the latest published brief.
+A **Next.js** app in `src/app` reads the database with **server-only** Supabase (`SUPABASE_SERVICE_ROLE_KEY`); the public homepage shows the latest published brief **as of each production build** (static export in `next.config.ts`, deployed from `out/`).
 
 This repo is set up to **develop against your hosted Supabase project** (e.g. production). You use the **Supabase CLI** for migrations and type generation; **Docker is not required** for that workflow.
 
@@ -38,7 +38,7 @@ npm run dev:all
 
 ### Deploy to Netlify
 
-The repo includes [`netlify.toml`](./netlify.toml) (`npm run build`, publish `.next`). Netlify’s **Next.js runtime** (OpenNext) provisions functions for SSR so the homepage can keep using the server-side Supabase service client.
+The repo includes [`netlify.toml`](./netlify.toml) (`npm run build`, publish **`out/`**). The site is a **static export**: Netlify serves prebuilt HTML/assets only; the homepage snapshot is produced **during the build** when Next runs the server-side Supabase client.
 
 **One-time CLI setup** (from the repo root):
 
@@ -48,7 +48,7 @@ npx netlify login
 npx netlify init   # link or create a site; pick this repo as the base directory if asked
 ```
 
-In the [Netlify UI](https://app.netlify.com/) → your site → **Site configuration → Environment variables**, add at least **`SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same values as in `.env`). These are required for the public homepage to load the latest published brief.
+In the [Netlify UI](https://app.netlify.com/) → your site → **Site configuration → Environment variables**, add at least **`SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same values as in `.env`). The build needs them so Next can prerender the homepage with the then-current published brief; changing content on Supabase does not update the live site until the next deploy.
 
 **Deploy from your machine**:
 

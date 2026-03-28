@@ -1,9 +1,9 @@
-# Next.js on Netlify uses the OpenNext adapter (auto-detected for linked/Git builds).
-# https://docs.netlify.com/frameworks/next-js/overview/
+# Static HTML export (`next.config.ts` has `output: "export"` → publish `out/`).
+# https://nextjs.org/docs/app/guides/static-exports
 
 [build]
   command = "npm run build"
-  publish = ".next"
+  publish = "out"
 
 [build.environment]
   NODE_VERSION = "22"

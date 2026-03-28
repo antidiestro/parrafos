@@ -8,3 +8,4 @@ supabase/.temp/
 *.tsbuildinfo
 next-env.d.ts
 *.log
+out/
