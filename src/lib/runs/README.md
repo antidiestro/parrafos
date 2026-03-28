@@ -18,7 +18,7 @@
 ## Run lifecycle
 - The console workflow inserts a `runs` row with `status = running` **before** `discover_candidates`, so discovery can attach to `run_id`. `runs.started_at` therefore includes discovery duration.
 - `run_discovery_candidates` is written only when the workflow **completes successfully**, so baselines exclude failed or abandoned runs. The stored URLs are the full `discover_candidates` output for that run (what the brief started from).
-- If `RUN_MIN_PCT_NEW_CANDIDATES` is set (0–100), after discovery the workflow compares URLs to the latest prior snapshot (from the last successful run); when the share of URLs not in that baseline is below the threshold, it throws and the run ends `failed` without prefetch or later stages.
+- If `RUN_MIN_PCT_NEW_CANDIDATES` is set (0–100), after discovery the workflow compares URLs to the latest prior snapshot (from the last successful run); when the share of URLs not in that baseline is below the threshold, it updates `published_at` on the latest published brief to the current time, finalizes the run as `completed`, and returns without prefetch or later stages (no new `briefs` row, no `run_discovery_candidates` insert). If no published brief exists, it throws and the run ends `failed`.
 - Otherwise the workflow continues and updates `runs` to `completed` or `failed` when the pipeline finishes. If the snapshot insert fails after the brief is published, the run is still marked `completed` and the failure is logged (so a successful brief is not downgraded to `failed`).
 
 ## Extraction invariants (domain)

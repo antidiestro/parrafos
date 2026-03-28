@@ -7,9 +7,11 @@ export const RUN_RECENCY_WINDOW_SHORT_HOURS = 6;
 export const RUN_RECENCY_WINDOW_MEDIUM_HOURS = 24;
 
 /**
- * When set (0–100), `generate-brief` aborts after discovery if the share of
- * canonical URLs not present in the latest saved snapshot is below this value.
- * Unset or empty = no gate.
+ * When set (0–100), `generate-brief` stops after discovery if the share of
+ * canonical URLs not present in the latest saved snapshot is below this value:
+ * it sets the latest published brief’s `published_at` to now, finalizes the run
+ * as completed, and exits successfully. If no published brief exists, the run
+ * fails. Unset or empty = no gate.
  */
 export function parseRunMinPctNewCandidates(): number | null {
   const raw = process.env.RUN_MIN_PCT_NEW_CANDIDATES?.trim();

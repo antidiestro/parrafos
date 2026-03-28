@@ -5,6 +5,7 @@ import {
   RUN_EXTRACT_MODEL,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
+import { touchLatestPublishedBriefPublishedAt } from "@/lib/data/briefs";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import {
   clusterSources,
@@ -55,9 +56,26 @@ export async function runConsoleWorkflow() {
       minPctNewCandidates !== null &&
       newVsBaseline.pctNew < minPctNewCandidates
     ) {
-      throw new Error(
-        `New candidate rate ${newVsBaseline.pctNew}% is below RUN_MIN_PCT_NEW_CANDIDATES (${minPctNewCandidates}%).`,
+      const touched = await touchLatestPublishedBriefPublishedAt();
+      if (!touched) {
+        throw new Error(
+          `New candidate rate ${newVsBaseline.pctNew}% is below RUN_MIN_PCT_NEW_CANDIDATES (${minPctNewCandidates}%), and no published brief exists to refresh.`,
+        );
+      }
+      const elapsedMsEarly = Date.now() - startedAt;
+      await finalizeConsoleRunRecord({ runId, status: "completed" });
+      divider("completed");
+      logLine(
+        "console workflow finished (novelty gate: refreshed latest brief published_at)",
+        {
+          runId,
+          briefId: touched.briefId,
+          pctNew: newVsBaseline.pctNew,
+          minPctNewCandidates,
+          elapsedSeconds: Math.round(elapsedMsEarly / 1000),
+        },
       );
+      return;
     }
 
     const extractConcurrencyRaw = Number.parseInt(

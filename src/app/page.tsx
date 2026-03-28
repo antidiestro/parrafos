@@ -87,7 +87,7 @@ function formatBriefGreetingEs(iso: string | null | undefined): string | null {
   return `Hola. Aquí tienes los Párrafos ${dayPart}.`;
 }
 
-/** e.g. "Actualizado a las 18:43" — `es` locale, 24h time from brief `created_at`. */
+/** e.g. "Actualizado a las 18:43" — `es` locale, 24h time from brief `published_at` (falls back to `created_at`). */
 function formatBriefUpdatedAtLineEs(
   iso: string | null | undefined,
 ): string | null {
@@ -106,8 +106,12 @@ function formatBriefUpdatedAtLineEs(
 export default async function HomePage() {
   const bundle = await getLatestPublishedBriefWithStories();
   const createdAt = bundle?.brief.created_at;
+  const updatedAtSource =
+    bundle?.brief.published_at ?? bundle?.brief.created_at;
   const greetingLine = bundle ? formatBriefGreetingEs(createdAt) : null;
-  const updatedAtLine = bundle ? formatBriefUpdatedAtLineEs(createdAt) : null;
+  const updatedAtLine = bundle
+    ? formatBriefUpdatedAtLineEs(updatedAtSource)
+    : null;
 
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-6 pt-24 pb-32">

@@ -3,8 +3,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 type BriefRow = Database["public"]["Tables"]["briefs"]["Row"];
 type StoryRow = Database["public"]["Tables"]["stories"]["Row"];
-type BriefSectionRow =
-  Database["public"]["Tables"]["brief_sections"]["Row"];
+type BriefSectionRow = Database["public"]["Tables"]["brief_sections"]["Row"];
 type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
 
 export type BriefSectionSourceRow = Pick<
@@ -189,4 +188,36 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
     );
 
   return { brief, sections: hydratedSections };
+}
+
+/** Same “latest published brief” ordering as `getLatestPublishedBriefWithStories`. */
+export async function touchLatestPublishedBriefPublishedAt(): Promise<{
+  briefId: string;
+} | null> {
+  const supabase = createSupabaseServiceClient();
+  const { data: brief, error: briefError } = await supabase
+    .from("briefs")
+    .select("id")
+    .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (briefError) {
+    throw new Error(briefError.message);
+  }
+  if (!brief) {
+    return null;
+  }
+
+  const publishedAt = new Date().toISOString();
+  const { error: updateError } = await supabase
+    .from("briefs")
+    .update({ published_at: publishedAt })
+    .eq("id", brief.id);
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+  return { briefId: brief.id };
 }
