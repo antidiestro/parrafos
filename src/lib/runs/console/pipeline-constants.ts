@@ -31,6 +31,22 @@ export const clusterResponseJsonSchema = {
   required: ["stories"],
 };
 
+/** Pre-clustering pass: refs (e.g. c1, c2) to drop as routine non-history-making sports. */
+export const clusterSportsFilterSchema = z.object({
+  remove_source_refs: z.array(z.string().trim().min(1)),
+});
+
+export const clusterSportsFilterResponseJsonSchema = {
+  type: "object",
+  properties: {
+    remove_source_refs: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: ["remove_source_refs"],
+};
+
 export const relevantStoriesSchema = z.object({
   selected_clusters: z
     .array(

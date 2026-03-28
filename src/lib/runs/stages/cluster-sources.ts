@@ -1,8 +1,10 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
-import { RUN_CLUSTER_MODEL } from "@/lib/runs/constants";
+import { RUN_CLUSTER_MODEL, RUN_EXTRACT_MODEL } from "@/lib/runs/constants";
 import {
   clusterResponseJsonSchema,
   clusterSchema,
+  clusterSportsFilterResponseJsonSchema,
+  clusterSportsFilterSchema,
 } from "@/lib/runs/console/pipeline-constants";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import type {
@@ -15,6 +17,58 @@ import {
   toSingleLine,
 } from "@/lib/runs/console/utils";
 
+async function filterOutRoutineSportsCandidates(
+  candidates: CandidateSource[],
+): Promise<CandidateSource[]> {
+  if (candidates.length === 0) {
+    return candidates;
+  }
+
+  const sportsFilterLines = candidates.map((candidate, index) => {
+    const alias = clusterPromptAliasForCandidateIndex(index);
+    const headline = toSingleLine(candidate.title) || "(no headline)";
+    return `${alias} | ${headline}`;
+  });
+
+  const filtered = await generateGeminiJson(
+    [
+      "You filter a list of news candidate headlines before clustering.",
+      "Each line is: source_ref | headline. The source_ref is only an id (e.g. c1, c2); use the headline text to decide.",
+      "Identify lines whose headline is clearly about sports in a routine, non-history-making way.",
+      "History-making sports means: landmark championship wins, unprecedented or broken records with lasting significance, major structural milestones for a league or sport, or similar rare defining moments.",
+      "Routine sports to EXCLUDE: regular season or typical match results, ordinary trades or signings, previews, injury updates, and generic sports news without that exceptional bar.",
+      "If a line is not clearly sports, or sports significance is ambiguous, do NOT remove it (err on the side of keeping).",
+      "Non-sports lines must never appear in remove_source_refs.",
+      'Return JSON: {"remove_source_refs":["c3",...]} listing only source_ref strings to drop. Use an empty array if none.',
+      "Candidates:",
+      sportsFilterLines.join("\n"),
+    ].join("\n"),
+    clusterSportsFilterSchema,
+    {
+      model: RUN_EXTRACT_MODEL,
+      nativeStructuredOutput: {
+        responseJsonSchema: clusterSportsFilterResponseJsonSchema,
+      },
+    },
+  );
+
+  const remove = new Set(
+    filtered.remove_source_refs.map((ref) => ref.trim()).filter(Boolean),
+  );
+  const kept = candidates.filter(
+    (_, index) => !remove.has(clusterPromptAliasForCandidateIndex(index)),
+  );
+
+  logLine("cluster_sources: sports pre-filter", {
+    model: RUN_EXTRACT_MODEL,
+    before: candidates.length,
+    removed: candidates.length - kept.length,
+    after: kept.length,
+  });
+
+  return kept;
+}
+
 export async function clusterSources(candidates: CandidateSource[]): Promise<{
   clusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
@@ -25,8 +79,15 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     throw new Error("No candidates available for clustering.");
   }
 
+  const afterSportsFilter = await filterOutRoutineSportsCandidates(candidates);
+  if (afterSportsFilter.length === 0) {
+    throw new Error(
+      "cluster_sources: sports pre-filter removed every candidate; nothing left to cluster.",
+    );
+  }
+
   const sourceByKey = new Map<string, CandidateSource>();
-  for (const candidate of candidates) {
+  for (const candidate of afterSportsFilter) {
     sourceByKey.set(
       sourceKeyFor(candidate.publisherId, candidate.canonicalUrl),
       candidate,
@@ -34,7 +95,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   }
 
   const aliasToStableKey = new Map<string, string>();
-  const inputLines = candidates.map((candidate, index) => {
+  const inputLines = afterSportsFilter.map((candidate, index) => {
     const stableKey = sourceKeyFor(candidate.publisherId, candidate.canonicalUrl);
     const alias = clusterPromptAliasForCandidateIndex(index);
     aliasToStableKey.set(alias, stableKey);
@@ -45,6 +106,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   const generated = await generateGeminiJson(
     [
       "Assign every candidate source to exactly one story.",
+      "Pay special attention to Chilean politics and to international affairs: prioritize accurate clustering and rich descriptions when headlines clearly concern Chile’s government, elections, institutions, major policy, or cross-border diplomatic and geopolitical developments.",
       "Use as many story clusters as needed so each source_ref appears in exactly one story.",
       "Each source_ref is the short id at the start of a candidate line (before the first |).",
       "Return the same source_ref strings in source_keys (not headline text or URLs).",
@@ -53,8 +115,11 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
       "Do not leave any candidate unassigned.",
       "For each story, write a rich description field of about 25 to 40 words (can go longer if needed): name the event, key actors, context, and stakes—full sentences, not a short headline.",
       'Return JSON object: {"stories":[{"description":"...","source_keys":["..."]}]}',
-      "Candidate sources (one per line: source_ref | source headline):",
+      "Candidate sources (one per line inside the block: source_ref | source headline):",
+      "<candidate_sources>",
       inputLines.join("\n"),
+      "</candidate_sources>",
+      "Reminder after the candidate list: Chilean politics and international affairs deserve extra care—do not merge unrelated developments; when several outlets cover the same Chile or world story, group them in one cluster with a precise description.",
     ].join("\n"),
     clusterSchema,
     {
@@ -120,7 +185,8 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     assignedSources,
     uniqueCandidates: sourceByKey.size,
     singletonBackfill: orphanKeys.length,
-    candidatesTotal: candidates.length,
+    candidatesTotal: afterSportsFilter.length,
+    candidatesBeforeSportsFilter: candidates.length,
   });
   return { clusters, sourceByKey };
 }
