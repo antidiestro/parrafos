@@ -61,7 +61,6 @@ export async function composeBriefSections(
     "Prioritize newer developments over older background context when deciding emphasis within each section.",
     "Use `as_of` on each JSON object and timeline timestamps as the primary guide to recency; treat the most recent verified updates as primary.",
     `Reference date/time for writing criteria: ${referenceNowIso}. Use this timestamp as "now" when assessing recency and temporal context.`,
-    "Make transitions between consecutive sections flow naturally in the given order, using concise bridging language without adding new facts.",
     "Keep a skeptical and balanced tone: acknowledge possible source bias and potential agendas in official versions.",
     "Keep that tone cautious and evidence-based, not conspiratorial.",
     OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
