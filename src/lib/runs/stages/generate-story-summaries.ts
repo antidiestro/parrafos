@@ -1,19 +1,19 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
-import { RUN_BRIEF_MODEL } from "@/lib/runs/constants";
-import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { divider, logLine } from "@/lib/runs/console/logging";
 import {
   OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
+  type StorySummaryJson,
   simpleStorySummaryResponseJsonSchema,
   simpleStorySummarySchema,
-  type StorySummaryJson,
 } from "@/lib/runs/console/pipeline-constants";
-import { divider, logLine } from "@/lib/runs/console/logging";
 import type {
   CandidateSource,
   ClusterDraft,
   StorySummaryRow,
 } from "@/lib/runs/console/types";
 import { decodeHtmlEntities, toHoursAgo } from "@/lib/runs/console/utils";
+import { RUN_BRIEF_MODEL } from "@/lib/runs/constants";
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 function normalizeStorySummaryStrings(
   value: StorySummaryJson,
@@ -37,9 +37,7 @@ function normalizeStorySummaryStrings(
   };
 }
 
-async function loadArticleBodiesBySource(
-  sources: CandidateSource[],
-): Promise<
+async function loadArticleBodiesBySource(sources: CandidateSource[]): Promise<
   Map<
     string,
     {
@@ -94,7 +92,9 @@ async function loadArticleBodiesBySource(
       rows: (data ?? []).length,
     });
   }
-  logLine("publish: load article bodies completed", { withBodyCount: out.size });
+  logLine("publish: load article bodies completed", {
+    withBodyCount: out.size,
+  });
   return out;
 }
 
@@ -165,7 +165,9 @@ export async function generateStorySummaries(input: {
       );
     }
     if (sourceTexts.length === 0) {
-      throw new Error(`No extracted article text available for cluster ${cluster.id}`);
+      throw new Error(
+        `No extracted article text available for cluster ${cluster.id}`,
+      );
     }
 
     const prompt = [
@@ -173,7 +175,7 @@ export async function generateStorySummaries(input: {
       "Instructions:",
       "1) Output MUST match the required JSON shape. All narrative string fields MUST be in Spanish.",
       "2) Use only the provided article texts. Do not invent facts, quotes, or dates.",
-      "3) In `summary`, synthesize all sources into one coherent account; lead with the newest verified development, then context.",
+      "3) In `summary`, synthesize all sources into one comprehensive, **very detailed** and coherent account; lead with the newest verified development, then context. Format with Markdown, use headings, links and bullet lists to create a readable narrative.",
       "4) `timeline` must list main developments from oldest to newest. Exactly one item must have is_latest=true.",
       "5) `latest_development` must describe that same newest item in one sentence.",
       "6) `latest_development_at` must equal the `timestamp` of the timeline entry where is_latest is true (use null for both when timing is unknown).",
@@ -205,12 +207,16 @@ export async function generateStorySummaries(input: {
       .filter(Boolean)
       .join("\n");
 
-    const generated = await generateGeminiJson(prompt, simpleStorySummarySchema, {
-      model: RUN_BRIEF_MODEL,
-      nativeStructuredOutput: {
-        responseJsonSchema: simpleStorySummaryResponseJsonSchema,
+    const generated = await generateGeminiJson(
+      prompt,
+      simpleStorySummarySchema,
+      {
+        model: RUN_BRIEF_MODEL,
+        nativeStructuredOutput: {
+          responseJsonSchema: simpleStorySummaryResponseJsonSchema,
+        },
       },
-    });
+    );
     const normalized = normalizeStorySummaryStrings(generated);
     const latestTimeline = normalized.timeline.find((item) => item.is_latest);
     const aligned = {
