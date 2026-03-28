@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 
@@ -14,18 +16,48 @@ const defaultProseClass = `story-md text-lg leading-relaxed text-zinc-800 [&_a]:
 
 const compactProseClass = `story-md text-base leading-relaxed text-zinc-800 [&_a]:text-zinc-900 [&_a]:underline [&_code]:rounded [&_code]:bg-zinc-100 [&_code]:px-1 ${compactHeadingBlock} [&_li]:mb-0.5 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5`;
 
+/** Inline control styled like markdown emphasis + link (for brief bold → open sidebar). */
+const strongOpenClass =
+  "inline max-w-none border-0 bg-transparent p-0 align-baseline font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-2 hover:text-black focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400";
+
 export function StoryMarkdown({
   markdown,
   variant = "default",
+  onStrongClick,
 }: {
   markdown: string;
   variant?: "default" | "compact";
+  /** When set, each markdown **strong** opens the sidebar (or any caller action). */
+  onStrongClick?: () => void;
 }) {
   const proseClass =
     variant === "compact" ? compactProseClass : defaultProseClass;
+
+  const components = useMemo<Components | undefined>(() => {
+    if (!onStrongClick) return undefined;
+    return {
+      strong({ children }) {
+        return (
+          <button
+            type="button"
+            onClick={onStrongClick}
+            className={strongOpenClass}
+          >
+            {children}
+          </button>
+        );
+      },
+    };
+  }, [onStrongClick]);
+
   return (
     <div className={proseClass}>
-      <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{markdown}</ReactMarkdown>
+      <ReactMarkdown
+        components={components}
+        rehypePlugins={[rehypeSanitize]}
+      >
+        {markdown}
+      </ReactMarkdown>
     </div>
   );
 }

@@ -104,7 +104,10 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
           bundle.sections.map((section) => (
             <section key={section.id}>
               <div className="w-full text-left">
-                <StoryMarkdown markdown={section.markdown} />
+                <StoryMarkdown
+                  markdown={section.markdown}
+                  onStrongClick={() => setSelectedSectionId(section.id)}
+                />
                 <div className="mt-4 flex w-full items-center gap-4">
                   <SourcePill
                     section={section}
