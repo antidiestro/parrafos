@@ -1,12 +1,20 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import type { BriefSectionSourceRow } from "@/lib/data/briefs";
 
 const UTM_SOURCE = "parrafos.com";
 const TRANSITION_MS = 300;
+
+/** Drop the first ATX heading line when it opens the doc (sidebar title duplicate). */
+function stripLeadingAtxHeading(markdown: string): string {
+  const trimmed = markdown.trimStart();
+  const m = trimmed.match(/^#{1,6}\s+[^\n]*(?:\n|$)/);
+  if (!m) return markdown;
+  return trimmed.slice(m[0].length).trimStart();
+}
 
 /** Append utm_source for outbound attribution; invalid URLs returned unchanged. */
 function hrefWithUtmSource(href: string): string {
@@ -122,6 +130,14 @@ export function StorySidebar({
     finishClose();
   };
 
+  const summaryBodyMarkdown = useMemo(
+    () =>
+      longSummaryText?.trim()
+        ? stripLeadingAtxHeading(longSummaryText)
+        : null,
+    [longSummaryText],
+  );
+
   return (
     <div className="fixed inset-0 z-50" role="presentation">
       <button
@@ -137,11 +153,11 @@ export function StorySidebar({
         aria-modal="true"
         aria-label="Detalle y fuentes"
         onTransitionEnd={handleAsideTransitionEnd}
-        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-[var(--paper)] shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-zinc-200 bg-[var(--paper)] shadow-2xl transition-transform duration-300 ease-out ${
           uiOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-center justify-end border-b border-zinc-200 px-5 py-4">
+        <header className="flex shrink-0 items-center justify-end border-b border-zinc-200 px-6 py-4 sm:px-9">
           <button
             type="button"
             onClick={requestClose}
@@ -151,13 +167,15 @@ export function StorySidebar({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3 sm:px-9">
           {longSummaryText ? (
             <>
-              <StoryMarkdown
-                markdown={longSummaryText}
-                variant="compact"
-              />
+              {summaryBodyMarkdown ? (
+                <StoryMarkdown
+                  markdown={summaryBodyMarkdown}
+                  variant="compact"
+                />
+              ) : null}
               <div
                 className="mt-4 border-t border-zinc-200 pt-3 pb-1"
                 role="presentation"

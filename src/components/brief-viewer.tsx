@@ -106,14 +106,6 @@ export function BriefViewer({ bundle }: { bundle: LatestBriefBundle }) {
               <div className="w-full text-left">
                 <StoryMarkdown markdown={section.markdown} />
                 <div className="mt-4 flex w-full items-center gap-4">
-                  <button
-                    type="button"
-                    lang="es"
-                    onClick={() => setSelectedSectionId(section.id)}
-                    className="font-medium shrink-0 rounded-md bg-stone-500/30 px-3 py-1.5 cursor-pointer font-sans text-sm text-stone-800 transition-colors hover:bg-stone-800 hover:text-stone-200"
-                  >
-                    Leer más
-                  </button>
                   <SourcePill
                     section={section}
                     onClick={() => setSelectedSectionId(section.id)}
