@@ -6,7 +6,7 @@
 - **Model config:** `constants.ts` — model IDs and recency windows used by orchestrator and stages.
 
 ## Key Files
-- `constants.ts`: Gemini model IDs, recency window hours, and `parseBriefSectionComposeConstraints()` (`BRIEF_SECTION_PARAGRAPH_COUNT`, `BRIEF_SECTION_CHAR_TARGET` for the compose step).
+- `constants.ts`: Gemini model IDs, recency window hours, and `parseBriefSectionComposeConstraints()` (`BRIEF_SECTION_PARAGRAPH_COUNT`, `BRIEF_SECTION_CHAR_TARGET` for the compose step). Clustering uses `RUN_CLUSTER_MODEL` (`gemini-3.1-flash-lite-preview`); the clustering prompt lists candidates as compact aliases (`c1`, `c2`, … from `clusterPromptAliasForCandidateIndex`) with each source’s headline only—no published timestamps in that prompt. The model returns a long-form `description` per story (JSON key) and source refs in `source_keys`; `clusterSources` maps refs to stable `sourceKeyFor` keys and copies each `description` onto the cluster’s `title` for downstream stages.
 - `console/orchestrator.ts`: wires stages and run row lifecycle.
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits.
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
@@ -24,7 +24,7 @@
 ## Extraction invariants (domain)
 - Candidate URLs are canonicalized and deduplicated before extraction.
 - Metadata prefetch reuses existing article metadata by canonical URL when available.
-- Clustering assigns every candidate source to exactly one run-scoped story cluster; singleton clusters are allowed, and multi-outlet groupings are kept when the model merges clearly related coverage.
+- Clustering assigns every candidate source to exactly one run-scoped story cluster; singleton clusters are allowed, and multi-outlet groupings are kept when the model merges clearly related coverage. The clustering LLM emits `description` per story; that text becomes the cluster `title` in `ClusterDraft` and later stages. Internally, clusters still reference stable `sourceKeyFor` ids; only the LLM-facing lines use short aliases to save tokens.
 - Relevance selection (`select-clusters`) only sends **multi-source** clusters (two or more articles) to the model; singleton clusters never enter that LLM call. Structured output is `selected_clusters` with `cluster_id` and `selection_reason` per item.
 - Article upserts use conflict key `(publisher_id, canonical_url)`.
 

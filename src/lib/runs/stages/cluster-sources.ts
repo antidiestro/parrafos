@@ -9,7 +9,11 @@ import type {
   CandidateSource,
   ClusterDraft,
 } from "@/lib/runs/console/types";
-import { sourceKeyFor, toSingleLine } from "@/lib/runs/console/utils";
+import {
+  clusterPromptAliasForCandidateIndex,
+  sourceKeyFor,
+  toSingleLine,
+} from "@/lib/runs/console/utils";
 
 export async function clusterSources(candidates: CandidateSource[]): Promise<{
   clusters: ClusterDraft[];
@@ -29,22 +33,27 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     );
   }
 
-  const inputLines = candidates.map((candidate) => {
-    const sourceKey = sourceKeyFor(candidate.publisherId, candidate.canonicalUrl);
-    const title = toSingleLine(candidate.title) || "(untitled)";
-    const publishedAt = candidate.publishedAt ?? "unknown";
-    return `${sourceKey} | ${publishedAt} | ${title}`;
+  const aliasToStableKey = new Map<string, string>();
+  const inputLines = candidates.map((candidate, index) => {
+    const stableKey = sourceKeyFor(candidate.publisherId, candidate.canonicalUrl);
+    const alias = clusterPromptAliasForCandidateIndex(index);
+    aliasToStableKey.set(alias, stableKey);
+    const headline = toSingleLine(candidate.title) || "(no headline)";
+    return `${alias} | ${headline}`;
   });
 
   const generated = await generateGeminiJson(
     [
       "Assign every candidate source to exactly one story.",
-      "Use as many story clusters as needed so each source_key appears in exactly one story.",
+      "Use as many story clusters as needed so each source_ref appears in exactly one story.",
+      "Each source_ref is the short id at the start of a candidate line (before the first |).",
+      "Return the same source_ref strings in source_keys (not headline text or URLs).",
       "Group clearly related sources that describe the same concrete event or development.",
       "Single-source clusters are required when a source does not clearly match any other.",
       "Do not leave any candidate unassigned.",
-      'Return JSON object: {"stories":[{"title":"...","source_keys":["..."]}]}',
-      "Candidate sources (one per line: source_key | published_at | title):",
+      "For each story, write a rich description field of about 25 to 40 words (can go longer if needed): name the event, key actors, context, and stakes—full sentences, not a short headline.",
+      'Return JSON object: {"stories":[{"description":"...","source_keys":["..."]}]}',
+      "Candidate sources (one per line: source_ref | source headline):",
       inputLines.join("\n"),
     ].join("\n"),
     clusterSchema,
@@ -62,18 +71,23 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   let nextClusterNumber = 1;
   for (const story of generated.stories) {
     const sourceKeys: string[] = [];
-    for (const key of story.source_keys) {
-      if (!sourceByKey.has(key)) continue;
-      if (usedKeys.has(key)) continue;
-      usedKeys.add(key);
-      sourceKeys.push(key);
+    for (const raw of story.source_keys) {
+      const trimmed = raw.trim();
+      const stableKey =
+        aliasToStableKey.get(trimmed) ??
+        (sourceByKey.has(trimmed) ? trimmed : null);
+      if (!stableKey) continue;
+      if (!sourceByKey.has(stableKey)) continue;
+      if (usedKeys.has(stableKey)) continue;
+      usedKeys.add(stableKey);
+      sourceKeys.push(stableKey);
     }
 
     if (sourceKeys.length === 0) continue;
 
     clusters.push({
       id: `cluster_${nextClusterNumber}`,
-      title: story.title.trim() || `Story cluster ${nextClusterNumber}`,
+      title: story.description.trim() || `Story cluster ${nextClusterNumber}`,
       sourceKeys,
       selectionReason: null,
     });

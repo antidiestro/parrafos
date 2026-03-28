@@ -7,7 +7,7 @@ export const EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS = 7_000;
 export const clusterSchema = z.object({
   stories: z.array(
     z.object({
-      title: z.string().trim().min(1),
+      description: z.string().trim().min(1),
       source_keys: z.array(z.string().trim().min(1)).min(1).max(100),
     }),
   ),
@@ -21,10 +21,10 @@ export const clusterResponseJsonSchema = {
       items: {
         type: "object",
         properties: {
-          title: { type: "string" },
+          description: { type: "string" },
           source_keys: { type: "array", items: { type: "string" } },
         },
-        required: ["title", "source_keys"],
+        required: ["description", "source_keys"],
       },
     },
   },
@@ -65,13 +65,16 @@ export const relevantStoriesResponseJsonSchema = {
  * Normalizes model timestamps without Zod's strict `datetime` string format (which can reject
  * valid instants like `...50.612Z`). Unparseable strings become null.
  */
-const instantOrNull = z.preprocess((val: unknown): string | null => {
-  if (val === null || val === undefined) return null;
-  const s = typeof val === "string" ? val.trim() : String(val).trim();
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
-}, z.union([z.string(), z.null()]));
+const instantOrNull = z.preprocess(
+  (val: unknown): string | null => {
+    if (val === null || val === undefined) return null;
+    const s = typeof val === "string" ? val.trim() : String(val).trim();
+    if (!s) return null;
+    const ms = Date.parse(s);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  },
+  z.union([z.string(), z.null()]),
+);
 
 const timelineItemSchema = z.object({
   timestamp: instantOrNull.describe(

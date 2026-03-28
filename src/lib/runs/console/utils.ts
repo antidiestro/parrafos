@@ -71,6 +71,11 @@ export function sourceKeyFor(publisherId: string, canonicalUrl: string) {
   return `s_${digest}`;
 }
 
+/** Compact id for one line in the clustering LLM prompt only; maps back to `sourceKeyFor` via a per-run map. */
+export function clusterPromptAliasForCandidateIndex(index: number): string {
+  return `c${index + 1}`;
+}
+
 export function replaceNewlinesWithSpaces(value: string) {
   return value
     .replace(/\r?\n+/g, " ")
