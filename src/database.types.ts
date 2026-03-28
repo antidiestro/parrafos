@@ -173,6 +173,32 @@ export type Database = {
         }
         Relationships: []
       }
+      run_discovery_candidates: {
+        Row: {
+          canonical_urls: string[]
+          created_at: string
+          run_id: string
+        }
+        Insert: {
+          canonical_urls: string[]
+          created_at?: string
+          run_id: string
+        }
+        Update: {
+          canonical_urls?: string[]
+          created_at?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_discovery_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runs: {
         Row: {
           cluster_model: string | null

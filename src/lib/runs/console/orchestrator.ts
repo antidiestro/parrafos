@@ -1,4 +1,5 @@
 import {
+  parseRunMinPctNewCandidates,
   RUN_BRIEF_MODEL,
   RUN_CLUSTER_MODEL,
   RUN_EXTRACT_MODEL,
@@ -11,9 +12,12 @@ import {
   createConsoleRunRecord,
   discoverCandidates,
   extractBodies,
+  fetchLatestDiscoveryBaselineUrls,
   finalizeConsoleRunRecord,
   generateStorySummaries,
+  newCandidateMetrics,
   persistBriefOutput,
+  persistDiscoveryCandidates,
   prefetchMetadata,
   selectClusters,
   upsertExtractedArticles,
@@ -30,9 +34,30 @@ export async function runConsoleWorkflow() {
   });
 
   try {
+    const minPctNewCandidates = parseRunMinPctNewCandidates();
+
+    runId = await createConsoleRunRecord();
+    logLine("created console run record", { runId });
+
     const discovered = await discoverCandidates();
+    const baselineUrls = await fetchLatestDiscoveryBaselineUrls();
+    const newVsBaseline = newCandidateMetrics(discovered, baselineUrls);
+    if (minPctNewCandidates !== null) {
+      logLine("discover_candidates: new_vs_prior_snapshot", {
+        ...newVsBaseline,
+        minPctNewCandidates,
+      });
+    }
     if (discovered.length === 0) {
       throw new Error("No candidates discovered.");
+    }
+    if (
+      minPctNewCandidates !== null &&
+      newVsBaseline.pctNew < minPctNewCandidates
+    ) {
+      throw new Error(
+        `New candidate rate ${newVsBaseline.pctNew}% is below RUN_MIN_PCT_NEW_CANDIDATES (${minPctNewCandidates}%).`,
+      );
     }
 
     const extractConcurrencyRaw = Number.parseInt(
@@ -43,9 +68,6 @@ export async function runConsoleWorkflow() {
       Number.isFinite(extractConcurrencyRaw) && extractConcurrencyRaw > 0
         ? Math.min(extractConcurrencyRaw, 20)
         : 5;
-
-    runId = await createConsoleRunRecord();
-    logLine("created console run record", { runId });
 
     const { prefetchedByKey, metadataReadyRecent } = await prefetchMetadata({
       discovered,
@@ -81,6 +103,17 @@ export async function runConsoleWorkflow() {
     });
 
     const elapsedMs = Date.now() - startedAt;
+    try {
+      await persistDiscoveryCandidates({ runId, discovered });
+    } catch (persistDiscoveryError) {
+      logLine("runs: persist discovery candidates failed; brief already published", {
+        runId,
+        error:
+          persistDiscoveryError instanceof Error
+            ? persistDiscoveryError.message
+            : String(persistDiscoveryError),
+      });
+    }
     await finalizeConsoleRunRecord({ runId, status: "completed" });
     divider("completed");
     logLine("console workflow finished successfully", {

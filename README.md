@@ -90,6 +90,7 @@ Fill `.env` from **Project Settings → API**:
 | `LANGSMITH_PROJECT` | Optional LangSmith project name (for trace organization) |
 | `LANGSMITH_TRACING` | Set to `true` to emit traces |
 | `LANGSMITH_GEMINI_TAGS` | Optional comma-separated tags added to Gemini traces |
+| `RUN_MIN_PCT_NEW_CANDIDATES` | Optional. When set to `0`–`100`, `npm run generate-brief` exits after discovery (run `failed`) if the percentage of discovered canonical URLs not present in the latest snapshot from a **completed** brief is below this threshold (failed runs do not update that snapshot) |
 
 Your app and scripts read `SUPABASE_URL` and the keys at runtime from `.env` (see below).
 

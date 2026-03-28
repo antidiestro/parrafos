@@ -1,4 +1,9 @@
 export { discoverCandidates } from "@/lib/runs/stages/discover-candidates";
+export {
+  fetchLatestDiscoveryBaselineUrls,
+  newCandidateMetrics,
+  persistDiscoveryCandidates,
+} from "@/lib/runs/stages/persist-discovery-candidates";
 export { prefetchMetadata } from "@/lib/runs/stages/prefetch-metadata";
 export { clusterSources } from "@/lib/runs/stages/cluster-sources";
 export { selectClusters } from "@/lib/runs/stages/select-clusters";

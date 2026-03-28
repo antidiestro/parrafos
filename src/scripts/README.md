@@ -9,6 +9,7 @@
 
 ## Workflow Console Behavior
 - `npm run generate-brief`: executes the direct workflow pipeline from publisher crawl through brief publication.
+- Optional `RUN_MIN_PCT_NEW_CANDIDATES` (0–100): after discovery, aborts with a failed run if the percentage of canonical URLs **not** in the latest snapshot from a **prior successful** brief is below that value (no prefetch/cluster/brief work). Snapshots are saved only when a run completes successfully.
 - Implementation lives in `src/lib/runs/console/` (orchestration, logging, types) and `src/lib/runs/stages/` (stage modules). This script only boots the process and loads `.env` via the package script.
 - Stage progress and diagnostics are emitted to stdout using the logging helpers in `lib/runs/console`.
 - Run records are created and finalized in `lib/runs/stages/run-records.ts` (`running` → `completed`/`failed`).

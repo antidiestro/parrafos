@@ -1,4 +1,5 @@
 import type { Json } from "@/database.types";
+import { logLine } from "@/lib/runs/console/logging";
 import {
   RUN_CLUSTER_MODEL,
   RUN_EXTRACT_MODEL,
@@ -6,7 +7,6 @@ import {
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { logLine } from "@/lib/runs/console/logging";
 
 function consoleRunMetadata(): Json {
   return {
