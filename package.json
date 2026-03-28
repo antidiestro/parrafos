@@ -14,6 +14,7 @@
     "deploy:netlify:draft": "netlify deploy --build",
     "lint": "eslint",
     "generate-brief": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
+    "regenerate-brief": "dotenv -e .env -- tsx src/scripts/regenerate-brief-from-latest.ts",
     "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
   },
   "dependencies": {

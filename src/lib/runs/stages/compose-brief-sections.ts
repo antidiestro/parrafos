@@ -1,5 +1,8 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
-import { RUN_BRIEF_MODEL } from "@/lib/runs/constants";
+import {
+  parseBriefSectionComposeConstraints,
+  RUN_BRIEF_MODEL,
+} from "@/lib/runs/constants";
 import {
   OBJECTIVE_JOURNALISTIC_TONE_INSTRUCTION,
   finalBriefSectionsResponseJsonSchema,
@@ -9,7 +12,7 @@ import {
 } from "@/lib/runs/console/pipeline-constants";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import type { BriefSectionRow, StorySummaryRow } from "@/lib/runs/console/types";
-import { decodeHtmlEntities, replaceNewlinesWithSpaces } from "@/lib/runs/console/utils";
+import { normalizeBriefSectionMarkdown } from "@/lib/runs/console/utils";
 
 function parseStoredStorySummaryJson(detailMarkdown: string): StorySummaryJson {
   let raw: unknown;
@@ -21,12 +24,38 @@ function parseStoredStorySummaryJson(detailMarkdown: string): StorySummaryJson {
   return simpleStorySummarySchema.parse(raw);
 }
 
+function briefSectionFormattingInstructions(
+  paragraphCount: number,
+  charTarget: number,
+): string[] {
+  const lengthPhrase = `Aim for roughly ${charTarget} characters per paragraph as a guide only (Spanish text, spaces included)—stay natural; do not pad or truncate to hit an exact count. Include the bold title in the first paragraph only.`;
+  if (paragraphCount <= 1) {
+    return [
+      "Each section is markdown for that story. Within each section, write exactly one markdown paragraph (no line breaks inside the section body).",
+      lengthPhrase.replace(" per paragraph", " for that paragraph"),
+      "Start the paragraph with a short inline title in bold, ending with a period, then continue in the same paragraph.",
+      'Required format at section start: "**Título corto.** " followed by the rest of the paragraph.',
+    ];
+  }
+  return [
+    `Each section is markdown for that story. Within each section, write exactly ${paragraphCount} markdown paragraphs, separated by a single blank line (no extra blank lines).`,
+    lengthPhrase,
+    "Separate paragraphs with real line breaks in the markdown field: press Enter twice between paragraphs. Do not write the two characters backslash and n; the JSON string must contain actual newline characters.",
+    "Start the first paragraph with a short inline title in bold, ending with a period, then continue in that paragraph.",
+    'Required format at the start of the first paragraph: "**Título corto.** " followed by the rest of that paragraph.',
+    "Do not use a bold lead-in title on the second or later paragraphs unless quoting requires it.",
+    "Later paragraphs continue the story with context or background; no bullet lists inside any paragraph.",
+  ];
+}
+
 export async function composeBriefSections(
   storySummaries: StorySummaryRow[],
 ): Promise<BriefSectionRow[]> {
   divider("compose_brief_sections");
+  const constraints = parseBriefSectionComposeConstraints();
   logLine("compose_brief_sections: input prepared", {
     storySummaries: storySummaries.length,
+    ...constraints,
   });
   if (storySummaries.length === 0) {
     throw new Error("Cannot compose brief sections without story summaries.");
@@ -50,10 +79,10 @@ export async function composeBriefSections(
     "You are composing a final multi-story news brief from structured per-story summaries (JSON objects with summary, timeline, key_facts, quotes, and latest_development fields).",
     "Output MUST be in Spanish.",
     "Return exactly one brief section per story, in the same order.",
-    "Each section is markdown for that story. Within each section, write exactly one markdown paragraph (no line breaks inside the section body).",
-    "Target about 480–520 characters for that paragraph (Spanish text, spaces included), including the bold title.",
-    "Start the paragraph with a short inline title in bold, ending with a period, then continue in the same paragraph.",
-    'Required format at section start: "**Título corto.** " followed by the rest of the paragraph.',
+    ...briefSectionFormattingInstructions(
+      constraints.paragraphCount,
+      constraints.charTarget,
+    ),
     "Keep the bold title short (2-6 words), neutral, and objective.",
     "The bold title must describe the latest concrete development in that story, not the broader ongoing theme. Prefer `latest_development` and the timeline entry with is_latest=true.",
     "No headings, no bullet lists, no inline citations.",
@@ -88,10 +117,26 @@ export async function composeBriefSections(
     );
   }
 
-  const rows = generated.sections.map((section, idx) => ({
-    clusterId: storySummaries[idx].clusterId,
-    markdown: replaceNewlinesWithSpaces(decodeHtmlEntities(section.markdown)),
-  }));
+  const rows = generated.sections.map((section, idx) => {
+    const markdown = normalizeBriefSectionMarkdown(
+      section.markdown,
+      constraints.paragraphCount,
+    );
+    if (constraints.paragraphCount > 1) {
+      const paragraphBlocks = markdown.split(/\n\n+/).filter(Boolean);
+      if (paragraphBlocks.length !== constraints.paragraphCount) {
+        logLine("compose_brief_sections: paragraph count mismatch (continuing)", {
+          storyIndex: idx + 1,
+          expected: constraints.paragraphCount,
+          got: paragraphBlocks.length,
+        });
+      }
+    }
+    return {
+      clusterId: storySummaries[idx].clusterId,
+      markdown,
+    };
+  });
   logLine("compose_brief_sections: done", { sections: rows.length });
   return rows;
 }

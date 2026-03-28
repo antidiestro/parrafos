@@ -1,19 +1,19 @@
 # `src/lib/runs`
 
 ## Purpose
-- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds). Stdout from `npm run generate-brief` stays **event-granular** (including per-item lines where the pipeline already logs each step), but `console/logging.ts` formats context compactly: short timestamps, `[stage] …` markers, truncated strings/URLs, and **no large nested JSON blobs** (errors collapse to a short message, typically `code: message` when present).
+- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), `republishBriefFromLatestStories` for brief-only republish, stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds). Stdout from `npm run generate-brief` stays **event-granular** (including per-item lines where the pipeline already logs each step), but `console/logging.ts` formats context compactly: short timestamps, `[stage] …` markers, truncated strings/URLs, and **no large nested JSON blobs** (errors collapse to a short message, typically `code: message` when present).
 - **Stages:** `stages/` implements each step (discovery, prefetch, cluster, select, extract, upsert, summaries, compose brief sections, persist brief output, persist discovery snapshot on success, run records).
 - **Model config:** `constants.ts` — model IDs and recency windows used by orchestrator and stages.
 
 ## Key Files
-- `constants.ts`: Gemini model IDs and recency window hours.
+- `constants.ts`: Gemini model IDs, recency window hours, and `parseBriefSectionComposeConstraints()` (`BRIEF_SECTION_PARAGRAPH_COUNT`, `BRIEF_SECTION_CHAR_TARGET` for the compose step).
 - `console/orchestrator.ts`: wires stages and run row lifecycle.
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits.
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
 - `stages/persist-discovery-candidates.ts`: after a **successful** pipeline, inserts the full initial discovery set into `run_discovery_candidates` (deduplicated sorted canonical URLs per run; not the selected-cluster subset).
 - `stages/generate-story-summaries.ts`: LLM step that emits one **structured JSON** object per story (Zod: `simpleStorySummarySchema`); `quotes` include **`speaker_context`** (role/affiliation); **`key_facts`** are longer-form detailed items. The stringified JSON is stored in `stories.markdown` / `detail_markdown` and passed to compose. Summaries run in **relevance selection order** (same order as `select-clusters` output), so published `brief_sections` and `story_articles` stay aligned with each story.
-- `stages/compose-brief-sections.ts`: LLM step that reads those JSON payloads and emits one markdown section per story (~500-character paragraph with a bold lead-in title); structured output uses a `sections` array (same order as the summaries). The model is not asked to bridge or smooth transitions between consecutive sections.
-- `stages/persist-brief-output.ts`: writes `story_articles` by resolving each persisted story’s `clusterId` from `storySummaries`, not by parallel index into `selectedClusters`, so links cannot drift if array ordering ever diverges.
+- `stages/compose-brief-sections.ts`: LLM step that reads those JSON payloads and emits one markdown section per story; paragraph count and a soft per-paragraph length target come from `parseBriefSectionComposeConstraints()` (defaults: one paragraph, ~500 characters as guidance, bold lead-in on the first paragraph). Structured output uses a `sections` array (same order as the summaries). `normalizeBriefSectionMarkdown` in `console/utils.ts` turns literal `\\n` sequences into real newlines, then splits on blank lines (or single line breaks when needed) before whitespace cleanup. The model is not asked to bridge or smooth transitions between consecutive sections.
+- `stages/persist-brief-output.ts`: writes `story_articles` by resolving each persisted story’s `clusterId` from `storySummaries`, not by parallel index into `selectedClusters`, so links cannot drift if array ordering ever diverges. `persistBriefOutputWithArticleIds` inserts a new published brief using explicit article UUID lists per story (used by `republishBriefFromLatestStories`).
 
 ## Run lifecycle
 - The console workflow inserts a `runs` row with `status = running` **before** `discover_candidates`, so discovery can attach to `run_id`. `runs.started_at` therefore includes discovery duration.
@@ -33,7 +33,7 @@
 - Pipeline behavior: update `stages/*` or `console/orchestrator.ts`.
 
 ## Verification
-- Run `npm run generate-brief`.
+- Run `npm run generate-brief` or `npm run regenerate-brief` (requires an existing published brief).
 - `npm run lint`
 - `npx tsc --noEmit`
 

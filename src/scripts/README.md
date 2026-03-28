@@ -5,11 +5,13 @@
 
 ## Key Files
 - `run-workflow-console.ts`: thin entrypoint for `npm run generate-brief`; delegates to `src/lib/runs/console`.
+- `regenerate-brief-from-latest.ts`: entrypoint for `npm run regenerate-brief`; recomposes brief sections from the latest published brief’s story JSON and publishes a new brief (see `src/lib/runs/console/republish-brief-from-latest.ts`). Does **not** write a `runs` row.
 - `evaluate-clustering.ts`: offline baseline-vs-precision clustering evaluator for multilingual candidate sets.
 
 ## Workflow Console Behavior
 - `npm run generate-brief`: executes the direct workflow pipeline from publisher crawl through brief publication.
-- Optional `RUN_MIN_PCT_NEW_CANDIDATES` (0–100): after discovery, aborts with a failed run if the percentage of canonical URLs **not** in the latest snapshot from a **prior successful** brief is below that value (no prefetch/cluster/brief work). Snapshots are saved only when a run completes successfully.
+- `npm run regenerate-brief`: loads the latest published brief (ordered sections + `stories.detail_markdown`), runs `composeBriefSections` only, inserts a new `briefs` row with copied summary JSON and `story_articles` links from that prior brief. Requires `SUPABASE_*`, `GEMINI_API_KEY`, and optional `BRIEF_SECTION_*` compose env vars (same as full pipeline).
+- Optional `RUN_MIN_PCT_NEW_CANDIDATES` (0–100): after discovery, aborts with a failed run if the percentage of canonical URLs **not** in the latest snapshot from a **prior successful** brief is below that value (no prefetch/cluster/brief work). Snapshots are saved only when a run completes successfully. (Ignored by `regenerate-brief`.)
 - Implementation lives in `src/lib/runs/console/` (orchestration, logging, types) and `src/lib/runs/stages/` (stage modules). This script only boots the process and loads `.env` via the package script.
 - Stage progress and diagnostics are emitted to stdout using the logging helpers in `lib/runs/console`.
 - Run records are created and finalized in `lib/runs/stages/run-records.ts` (`running` → `completed`/`failed`).
@@ -39,8 +41,8 @@
   - assigned coverage.
 
 ## Verification
-- Execute `npm run generate-brief` with a valid `.env`.
-- Confirm process exits cleanly and run status transitions in DB.
+- Execute `npm run generate-brief` or `npm run regenerate-brief` with a valid `.env`.
+- For `generate-brief`, confirm process exits cleanly and run status transitions in DB.
 - Confirm expected publish outputs are persisted (`briefs`, `stories`, `brief_sections`, `story_articles`).
 
 ## Gotchas

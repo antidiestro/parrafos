@@ -44,18 +44,10 @@ async function loadArticleIdsBySource(
   return map;
 }
 
-export async function persistBriefOutput(input: {
-  selectedClusters: ClusterDraft[];
-  sourceByKey: Map<string, CandidateSource>;
+async function insertPublishedBriefRows(input: {
   storySummaries: StorySummaryRow[];
   briefSections: BriefSectionRow[];
-}): Promise<{ briefId: string }> {
-  divider("persist_brief_output");
-  logLine("persist_brief_output: input prepared", {
-    selectedClusters: input.selectedClusters.length,
-    storySummaries: input.storySummaries.length,
-    briefSections: input.briefSections.length,
-  });
+}): Promise<{ briefId: string; storyIdByPosition: Map<number, string> }> {
   if (input.storySummaries.length !== input.briefSections.length) {
     throw new Error("Brief section count must match story summary count.");
   }
@@ -109,13 +101,30 @@ export async function persistBriefOutput(input: {
   );
   if (sectionsError) throw new Error(sectionsError.message);
 
-  const allSelectedSources = input.selectedClusters.flatMap((cluster) =>
-    cluster.sourceKeys
-      .map((key) => input.sourceByKey.get(key))
-      .filter((value): value is CandidateSource => Boolean(value)),
-  );
-  const articleIdBySource = await loadArticleIdsBySource(allSelectedSources);
+  return { briefId: brief.id, storyIdByPosition };
+}
 
+async function insertStoryArticleLinks(
+  storyArticleRows: Array<{ story_id: string; article_id: string }>,
+) {
+  if (storyArticleRows.length === 0) return;
+  const supabase = createSupabaseServiceClient();
+  logLine("persist_brief_output: inserting story-article links", {
+    linkRows: storyArticleRows.length,
+  });
+  const { error: storyArticlesError } = await supabase
+    .from("story_articles")
+    .insert(storyArticleRows);
+  if (storyArticlesError) throw new Error(storyArticlesError.message);
+}
+
+function storyArticleRowsFromClusters(input: {
+  selectedClusters: ClusterDraft[];
+  sourceByKey: Map<string, CandidateSource>;
+  storySummaries: StorySummaryRow[];
+  articleIdBySource: Map<string, string>;
+  storyIdByPosition: Map<number, string>;
+}): Array<{ story_id: string; article_id: string }> {
   const clusterById = new Map<string, ClusterDraft>();
   for (const cluster of input.selectedClusters) {
     clusterById.set(cluster.id, cluster);
@@ -130,13 +139,13 @@ export async function persistBriefOutput(input: {
         `Persist: story summary references cluster ${summary.clusterId} not found in selectedClusters.`,
       );
     }
-    const storyId = storyIdByPosition.get(index + 1);
+    const storyId = input.storyIdByPosition.get(index + 1);
     if (!storyId) continue;
     const seen = new Set<string>();
     for (const sourceKey of cluster.sourceKeys) {
       const source = input.sourceByKey.get(sourceKey);
       if (!source) continue;
-      const articleId = articleIdBySource.get(
+      const articleId = input.articleIdBySource.get(
         `${source.publisherId}::${source.canonicalUrl}`,
       );
       if (!articleId || seen.has(articleId)) continue;
@@ -144,22 +153,109 @@ export async function persistBriefOutput(input: {
       storyArticleRows.push({ story_id: storyId, article_id: articleId });
     }
   }
+  return storyArticleRows;
+}
 
-  if (storyArticleRows.length > 0) {
-    logLine("persist_brief_output: inserting story-article links", {
-      linkRows: storyArticleRows.length,
-    });
-    const { error: storyArticlesError } = await supabase
-      .from("story_articles")
-      .insert(storyArticleRows);
-    if (storyArticlesError) throw new Error(storyArticlesError.message);
+function storyArticleRowsFromCopiedIds(input: {
+  articleIdsPerStoryIndex: string[][];
+  storyIdByPosition: Map<number, string>;
+}): Array<{ story_id: string; article_id: string }> {
+  const out: Array<{ story_id: string; article_id: string }> = [];
+  for (let index = 0; index < input.articleIdsPerStoryIndex.length; index += 1) {
+    const storyId = input.storyIdByPosition.get(index + 1);
+    if (!storyId) continue;
+    const seen = new Set<string>();
+    for (const articleId of input.articleIdsPerStoryIndex[index] ?? []) {
+      if (!articleId?.trim() || seen.has(articleId)) continue;
+      seen.add(articleId);
+      out.push({ story_id: storyId, article_id: articleId });
+    }
   }
+  return out;
+}
+
+export async function persistBriefOutput(input: {
+  selectedClusters: ClusterDraft[];
+  sourceByKey: Map<string, CandidateSource>;
+  storySummaries: StorySummaryRow[];
+  briefSections: BriefSectionRow[];
+}): Promise<{ briefId: string }> {
+  divider("persist_brief_output");
+  logLine("persist_brief_output: input prepared", {
+    selectedClusters: input.selectedClusters.length,
+    storySummaries: input.storySummaries.length,
+    briefSections: input.briefSections.length,
+  });
+
+  const { briefId, storyIdByPosition } = await insertPublishedBriefRows({
+    storySummaries: input.storySummaries,
+    briefSections: input.briefSections,
+  });
+
+  const allSelectedSources = input.selectedClusters.flatMap((cluster) =>
+    cluster.sourceKeys
+      .map((key) => input.sourceByKey.get(key))
+      .filter((value): value is CandidateSource => Boolean(value)),
+  );
+  const articleIdBySource = await loadArticleIdsBySource(allSelectedSources);
+
+  const storyArticleRows = storyArticleRowsFromClusters({
+    selectedClusters: input.selectedClusters,
+    sourceByKey: input.sourceByKey,
+    storySummaries: input.storySummaries,
+    articleIdBySource,
+    storyIdByPosition,
+  });
+
+  await insertStoryArticleLinks(storyArticleRows);
 
   logLine("persist_brief_output: done", {
-    briefId: brief.id,
+    briefId,
     stories: input.storySummaries.length,
     sections: input.briefSections.length,
     storyArticleLinks: storyArticleRows.length,
   });
-  return { briefId: brief.id };
+  return { briefId };
+}
+
+/**
+ * Publish a new brief using explicit article IDs per story (0-based index).
+ * Used when re-composing copy from an existing published brief without cluster/source maps.
+ */
+export async function persistBriefOutputWithArticleIds(input: {
+  storySummaries: StorySummaryRow[];
+  briefSections: BriefSectionRow[];
+  articleIdsPerStoryIndex: string[][];
+}): Promise<{ briefId: string }> {
+  divider("persist_brief_output_copied_articles");
+  logLine("persist_brief_output_copied_articles: input prepared", {
+    storySummaries: input.storySummaries.length,
+    briefSections: input.briefSections.length,
+    articleIdArrays: input.articleIdsPerStoryIndex.length,
+  });
+  if (input.articleIdsPerStoryIndex.length !== input.storySummaries.length) {
+    throw new Error(
+      "articleIdsPerStoryIndex length must match story summaries count.",
+    );
+  }
+
+  const { briefId, storyIdByPosition } = await insertPublishedBriefRows({
+    storySummaries: input.storySummaries,
+    briefSections: input.briefSections,
+  });
+
+  const storyArticleRows = storyArticleRowsFromCopiedIds({
+    articleIdsPerStoryIndex: input.articleIdsPerStoryIndex,
+    storyIdByPosition,
+  });
+
+  await insertStoryArticleLinks(storyArticleRows);
+
+  logLine("persist_brief_output_copied_articles: done", {
+    briefId,
+    stories: input.storySummaries.length,
+    sections: input.briefSections.length,
+    storyArticleLinks: storyArticleRows.length,
+  });
+  return { briefId };
 }

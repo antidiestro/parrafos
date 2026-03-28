@@ -21,7 +21,7 @@
 - Add integration settings: update `lib/supabase` or `lib/gemini` env/client modules.
 
 ## Verification
-- Run focused scenario (homepage route or `npm run generate-brief` depending on change).
+- Run focused scenario (homepage route, `npm run generate-brief`, or `npm run regenerate-brief` depending on change).
 - `npm run lint`
 - `npx tsc --noEmit`
 

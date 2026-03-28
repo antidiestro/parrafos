@@ -78,6 +78,59 @@ export function replaceNewlinesWithSpaces(value: string) {
     .trim();
 }
 
+/**
+ * Models often return the characters `\` + `n` instead of a newline inside JSON strings.
+ * Normalize those (and `\r\n`, `\t`) before splitting paragraphs.
+ */
+export function unescapeBriefMarkdownEscapes(value: string): string {
+  return value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\\t/g, " ");
+}
+
+function splitBriefSectionParagraphs(
+  normalized: string,
+  expected: number,
+): string[] {
+  const trimmed = normalized.trim();
+  if (expected <= 1) {
+    return trimmed ? [trimmed] : [];
+  }
+
+  const blocksDoubleBreak = trimmed
+    .split(/\n\s*\n+/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  if (blocksDoubleBreak.length >= expected) {
+    if (blocksDoubleBreak.length > expected) {
+      const head = blocksDoubleBreak.slice(0, expected - 1);
+      const rest = blocksDoubleBreak.slice(expected - 1).join("\n\n");
+      return [...head, rest];
+    }
+    return blocksDoubleBreak;
+  }
+
+  if (blocksDoubleBreak.length === 1) {
+    const lines = trimmed
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length >= expected) {
+      if (lines.length > expected) {
+        const head = lines.slice(0, expected - 1);
+        const tail = lines.slice(expected - 1).join(" ");
+        return [...head, tail];
+      }
+      return lines;
+    }
+  }
+
+  return blocksDoubleBreak;
+}
+
 export function decodeHtmlEntities(value: string): string {
   return value
     .replace(/&#(\d+);/g, (_, code) =>
@@ -106,6 +159,23 @@ export function decodeHtmlEntities(value: string): string {
     .replace(/&ndash;/g, "–")
     .replace(/&hellip;/g, "…")
     .replace(/&amp;/g, "&");
+}
+
+/** Collapse whitespace inside each markdown paragraph; preserve blank lines between paragraphs when count > 1. */
+export function normalizeBriefSectionMarkdown(
+  markdown: string,
+  paragraphCount: number,
+): string {
+  const withRealBreaks = unescapeBriefMarkdownEscapes(markdown);
+  const decoded = decodeHtmlEntities(withRealBreaks);
+  const normalizedBreaks = decoded
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  if (paragraphCount <= 1) {
+    return replaceNewlinesWithSpaces(normalizedBreaks);
+  }
+  const blocks = splitBriefSectionParagraphs(normalizedBreaks, paragraphCount);
+  return blocks.map((block) => replaceNewlinesWithSpaces(block)).join("\n\n");
 }
 
 export function isPublishedWithinHours(

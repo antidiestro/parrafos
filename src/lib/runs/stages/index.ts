@@ -15,4 +15,7 @@ export {
 } from "@/lib/runs/stages/run-records";
 export { generateStorySummaries } from "@/lib/runs/stages/generate-story-summaries";
 export { composeBriefSections } from "@/lib/runs/stages/compose-brief-sections";
-export { persistBriefOutput } from "@/lib/runs/stages/persist-brief-output";
+export {
+  persistBriefOutput,
+  persistBriefOutputWithArticleIds,
+} from "@/lib/runs/stages/persist-brief-output";
