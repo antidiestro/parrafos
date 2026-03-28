@@ -1,21 +1,18 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
-import { RUN_CLUSTER_MODEL, RUN_EXTRACT_MODEL } from "@/lib/runs/constants";
+import { divider, logLine } from "@/lib/runs/console/logging";
 import {
   clusterResponseJsonSchema,
   clusterSchema,
   clusterSportsFilterResponseJsonSchema,
   clusterSportsFilterSchema,
 } from "@/lib/runs/console/pipeline-constants";
-import { divider, logLine } from "@/lib/runs/console/logging";
-import type {
-  CandidateSource,
-  ClusterDraft,
-} from "@/lib/runs/console/types";
+import type { CandidateSource, ClusterDraft } from "@/lib/runs/console/types";
 import {
   clusterPromptAliasForCandidateIndex,
   sourceKeyFor,
   toSingleLine,
 } from "@/lib/runs/console/utils";
+import { RUN_CLUSTER_MODEL, RUN_EXTRACT_MODEL } from "@/lib/runs/constants";
 
 async function filterOutRoutineSportsCandidates(
   candidates: CandidateSource[],
@@ -96,7 +93,10 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
 
   const aliasToStableKey = new Map<string, string>();
   const inputLines = afterSportsFilter.map((candidate, index) => {
-    const stableKey = sourceKeyFor(candidate.publisherId, candidate.canonicalUrl);
+    const stableKey = sourceKeyFor(
+      candidate.publisherId,
+      candidate.canonicalUrl,
+    );
     const alias = clusterPromptAliasForCandidateIndex(index);
     aliasToStableKey.set(alias, stableKey);
     const headline = toSingleLine(candidate.title) || "(no headline)";
@@ -119,7 +119,6 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
       "<candidate_sources>",
       inputLines.join("\n"),
       "</candidate_sources>",
-      "Reminder after the candidate list: Chilean politics and international affairs deserve extra care—do not merge unrelated developments; when several outlets cover the same Chile or world story, group them in one cluster with a precise description.",
     ].join("\n"),
     clusterSchema,
     {
@@ -169,7 +168,8 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     }
     usedKeys.add(key);
     const titleFromArticle =
-      (toSingleLine(candidate.title) || "").trim() || `Story cluster ${nextClusterNumber}`;
+      (toSingleLine(candidate.title) || "").trim() ||
+      `Story cluster ${nextClusterNumber}`;
     clusters.push({
       id: `cluster_${nextClusterNumber}`,
       title: titleFromArticle,
@@ -179,7 +179,10 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     nextClusterNumber += 1;
   }
 
-  const assignedSources = clusters.reduce((acc, row) => acc + row.sourceKeys.length, 0);
+  const assignedSources = clusters.reduce(
+    (acc, row) => acc + row.sourceKeys.length,
+    0,
+  );
   logLine("cluster_sources: done", {
     clustersCreated: clusters.length,
     assignedSources,
