@@ -38,7 +38,7 @@ npm run dev:all
 
 ### Deploy to Netlify
 
-The repo includes [`netlify.toml`](./netlify.toml) (`npm run build`, publish **`out/`**). The site is a **static export**: Netlify serves prebuilt HTML/assets only; the homepage snapshot is produced **during the build** when Next runs the server-side Supabase client.
+The repo includes [`netlify.toml`](./netlify.toml) (`npm run build`, publish **`out/`**). The site is a **static export**: Netlify serves prebuilt HTML/assets only; the homepage snapshot is produced **during the build** when Next runs the server-side Supabase client. The homepage response sets **Cache-Control** with **15 minutes** (`max-age` and `s-maxage` of 900 seconds) for browsers and shared caches.
 
 **One-time CLI setup** (from the repo root):
 
