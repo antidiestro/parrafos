@@ -38,6 +38,7 @@ export function StoryMarkdown({
     return {
       strong({ children }) {
         return (
+          // biome-ignore lint/a11y/useValidAnchor: Inline tap target; native <button> centers wrapped label text.
           <a
             href="#"
             className={strongOpenClass}
