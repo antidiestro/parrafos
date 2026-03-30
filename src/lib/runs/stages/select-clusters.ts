@@ -107,6 +107,7 @@ export async function selectClusters(input: {
       "Every eligible cluster_id must appear in exactly one bucket: primary_clusters, secondary_clusters, or diffuse_clusters.",
       "A diffuse cluster means the cluster does not clearly map to one concrete specific news event.",
       "Prioritize public impact and broad relevance.",
+      "Notable passings (deaths of widely recognized public figures—national or international leaders, major artists or cultural figures, celebrated scientists, athletes of historic stature, or others with clear broad public significance) are strong primary_cluster material when the cluster clearly concerns that person's death and multi-source coverage supports it.",
       `Prioritize clusters with concrete updates in the last ${RUN_RECENCY_WINDOW_SHORT_HOURS}-${RUN_RECENCY_WINDOW_MEDIUM_HOURS} hours.`,
       "Prefer newest developments over stale recap.",
       "Deprioritize repetitive, low-consequence, or evergreen items when stronger updates exist.",

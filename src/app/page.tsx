@@ -1,7 +1,10 @@
 import Image from "next/image";
 
 import { BriefViewer } from "@/components/brief-viewer";
-import { getLatestPublishedBriefWithStories } from "@/lib/data/briefs";
+import {
+  getLatestPublishedBriefWithStories,
+  sortBriefSectionsByMedianSourceRecency,
+} from "@/lib/data/briefs";
 
 /** Wall-clock interpretation for homepage copy (Chile). */
 const BRIEF_DISPLAY_TIMEZONE = "America/Santiago";
@@ -135,7 +138,12 @@ export default async function HomePage() {
             </p>
           </header>
 
-          <BriefViewer bundle={bundle} />
+          <BriefViewer
+            bundle={{
+              ...bundle,
+              sections: sortBriefSectionsByMedianSourceRecency(bundle.sections),
+            }}
+          />
         </article>
       )}
 

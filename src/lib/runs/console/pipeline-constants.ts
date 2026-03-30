@@ -38,11 +38,16 @@ export function createClusterEventDiscoveryResponseJsonSchema(minEvents: number)
   };
 }
 
+/**
+ * Pass B: one row per event cluster. `source_refs` is comma-separated candidate aliases (c1,c2,…).
+ * We use a string (not a JSON array) so Gemini `responseJsonSchema` accepts the shape: nested arrays
+ * inside array-of-objects often trigger INVALID_ARGUMENT.
+ */
 export const clusterEventAssignmentSchema = z.object({
-  assignments: z.array(
+  clusters: z.array(
     z.object({
-      source_ref: z.string().trim().min(1),
       event_ref: z.string().trim().min(1),
+      source_refs: z.string().trim().min(1),
     }),
   ),
 });
@@ -50,19 +55,26 @@ export const clusterEventAssignmentSchema = z.object({
 export const clusterEventAssignmentResponseJsonSchema = {
   type: "object",
   properties: {
-    assignments: {
+    clusters: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          source_ref: { type: "string" },
-          event_ref: { type: "string" },
+          event_ref: {
+            type: "string",
+            description: "Event id from pass A (e.g. e1).",
+          },
+          source_refs: {
+            type: "string",
+            description:
+              "Comma-separated source_ref ids for this event (e.g. c1,c3,c7). No spaces required.",
+          },
         },
-        required: ["source_ref", "event_ref"],
+        required: ["event_ref", "source_refs"],
       },
     },
   },
-  required: ["assignments"],
+  required: ["clusters"],
 };
 
 /** Pre-clustering pass: refs (e.g. c1, c2) to drop as routine non-history-making sports. */
@@ -123,7 +135,7 @@ export function createTieredRelevantStoriesResponseJsonSchema(
           },
           required: ["cluster_id", "selection_reason", "position"],
         },
-        maxItems: maxPrimary,
+        ...(maxPrimary > 0 ? { maxItems: maxPrimary } : {}),
       },
       secondary_clusters: {
         type: "array",
@@ -136,7 +148,7 @@ export function createTieredRelevantStoriesResponseJsonSchema(
           },
           required: ["cluster_id", "selection_reason", "position"],
         },
-        maxItems: maxSecondary,
+        ...(maxSecondary > 0 ? { maxItems: maxSecondary } : {}),
       },
       diffuse_clusters: {
         type: "array",

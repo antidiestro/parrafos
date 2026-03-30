@@ -183,11 +183,13 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
 
   const assignedEvents = await generateGeminiJson(
     [
-      "Assign each candidate source_ref to exactly one event_ref from the provided event list.",
+      "Group candidate sources into clusters keyed by event_ref from the provided event list.",
+      "Return one JSON object per event that receives at least one source_ref.",
+      "Each object must include event_ref and source_refs as a single comma-separated list of every source_ref for that event (example: \"c1,c2,c5\").",
       "Do not invent new event_ref values.",
-      "Use every candidate source_ref exactly once in assignments.",
-      "If source_ref meaning is uncertain, choose the best-fit event_ref and still assign exactly one.",
-      'Return JSON object: {"assignments":[{"source_ref":"c1","event_ref":"e1"}]}',
+      "Every candidate source_ref must appear in exactly one cluster’s source_refs list across the whole response.",
+      "If a source_ref is uncertain, still assign it once to the best-fit event_ref.",
+      'Return JSON shape: {"clusters":[{"event_ref":"e1","source_refs":"c1,c2"}]}',
       "Events:",
       "<events>",
       eventList.join("\n"),
@@ -207,7 +209,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   );
   logLine("cluster_sources: model response received", {
     pass: "event_assignment",
-    returnedAssignments: assignedEvents.assignments.length,
+    returnedClusterRows: assignedEvents.clusters.length,
   });
 
   const usedKeys = new Set<string>();
@@ -215,22 +217,27 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   let nextClusterNumber = 1;
 
   const eventToSourceKeys = new Map<string, string[]>();
-  for (const assignment of assignedEvents.assignments) {
-    const sourceRef = assignment.source_ref.trim();
-    const eventRef = assignment.event_ref.trim();
+  for (const row of assignedEvents.clusters) {
+    const eventRef = row.event_ref.trim();
     if (!uniqueEvents.has(eventRef)) continue;
-    const stableKey =
-      aliasToStableKey.get(sourceRef) ??
-      (sourceByKey.has(sourceRef) ? sourceRef : null);
-    if (!stableKey) continue;
-    if (!sourceByKey.has(stableKey)) continue;
-    if (usedKeys.has(stableKey)) continue;
-    usedKeys.add(stableKey);
-    const existing = eventToSourceKeys.get(eventRef);
-    if (existing) {
-      existing.push(stableKey);
-    } else {
-      eventToSourceKeys.set(eventRef, [stableKey]);
+    const sourceRefParts = row.source_refs
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const sourceRef of sourceRefParts) {
+      const stableKey =
+        aliasToStableKey.get(sourceRef) ??
+        (sourceByKey.has(sourceRef) ? sourceRef : null);
+      if (!stableKey) continue;
+      if (!sourceByKey.has(stableKey)) continue;
+      if (usedKeys.has(stableKey)) continue;
+      usedKeys.add(stableKey);
+      const existing = eventToSourceKeys.get(eventRef);
+      if (existing) {
+        existing.push(stableKey);
+      } else {
+        eventToSourceKeys.set(eventRef, [stableKey]);
+      }
     }
   }
 

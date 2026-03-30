@@ -8,7 +8,13 @@ type ArticleRow = Database["public"]["Tables"]["articles"]["Row"];
 
 export type BriefSectionSourceRow = Pick<
   ArticleRow,
-  "id" | "title" | "canonical_url" | "source_url" | "publisher_id"
+  | "id"
+  | "title"
+  | "canonical_url"
+  | "source_url"
+  | "publisher_id"
+  | "published_at"
+  | "extracted_at"
 > & {
   favicon_url: string | null;
   publisher_name: string;
@@ -25,6 +31,50 @@ export type LatestBriefBundle = {
     }
   >;
 };
+
+function sourceRecencyTimeMs(source: BriefSectionSourceRow): number | null {
+  const iso = source.published_at ?? source.extracted_at;
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function medianSortedNumbers(sorted: number[]): number {
+  const n = sorted.length;
+  if (n === 0) return Number.NaN;
+  const mid = Math.floor(n / 2);
+  if (n % 2 === 1) return sorted[mid] as number;
+  return ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
+}
+
+function sectionMedianSourceRecencyTimeMs(section: {
+  sources: BriefSectionSourceRow[];
+}): number {
+  if (section.sources.length === 0) return Number.NEGATIVE_INFINITY;
+  const times: number[] = [];
+  for (const s of section.sources) {
+    const ms = sourceRecencyTimeMs(s);
+    if (ms !== null) times.push(ms);
+  }
+  if (times.length === 0) return Number.NEGATIVE_INFINITY;
+  times.sort((x, y) => x - y);
+  return medianSortedNumbers(times);
+}
+
+/**
+ * Homepage ordering: “most fresh” clusters first using the **median** per-source
+ * recency (`published_at` when set, else `extracted_at`). Tie-break: stored `brief_sections.position`.
+ */
+export function sortBriefSectionsByMedianSourceRecency(
+  sections: LatestBriefBundle["sections"],
+): LatestBriefBundle["sections"] {
+  return [...sections].sort((a, b) => {
+    const tb = sectionMedianSourceRecencyTimeMs(b);
+    const ta = sectionMedianSourceRecencyTimeMs(a);
+    if (tb !== ta) return tb - ta;
+    return a.position - b.position;
+  });
+}
 
 /** Defensive extract of pipeline `summary` field; null if JSON missing or invalid. */
 function longSummaryTextFromStoryMarkdown(storyMarkdown: string): string | null {
@@ -107,13 +157,21 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
     string,
     Pick<
       ArticleRow,
-      "id" | "title" | "canonical_url" | "source_url" | "publisher_id"
+      | "id"
+      | "title"
+      | "canonical_url"
+      | "source_url"
+      | "publisher_id"
+      | "published_at"
+      | "extracted_at"
     >
   >();
   if (articleIds.length > 0) {
     const { data: articles, error: articlesError } = await supabase
       .from("articles")
-      .select("id,title,canonical_url,source_url,publisher_id")
+      .select(
+        "id,title,canonical_url,source_url,publisher_id,published_at,extracted_at",
+      )
       .in("id", articleIds);
     if (articlesError) {
       throw new Error(articlesError.message);
@@ -125,6 +183,8 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
         canonical_url: article.canonical_url,
         source_url: article.source_url,
         publisher_id: article.publisher_id,
+        published_at: article.published_at,
+        extracted_at: article.extracted_at,
       });
     }
   }
