@@ -7,10 +7,12 @@ const stixTwoText = STIX_Two_Text({
   weight: ["400", "500", "600", "700"],
 });
 
-const SITE_DESCRIPTION = "Para quedar al día en un par de minutos.";
+const SITE_DESCRIPTION =
+  "Una síntesis de noticias para quedar al día en un par de minutos. Se actualiza cada 15 minutos.";
 
 /** No trailing slash. Baked in at build time; set in production so og:image URLs are absolute. */
-const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ?? "";
+const siteUrlRaw =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ?? "";
 const siteUrl = siteUrlRaw.length > 0 ? siteUrlRaw : "http://localhost:3000";
 
 const OG_IMAGE_PATH = "/og-image.png";
