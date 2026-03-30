@@ -38,13 +38,16 @@ export function StoryMarkdown({
     return {
       strong({ children }) {
         return (
-          <button
-            type="button"
-            onClick={onStrongClick}
+          <a
+            href="#"
             className={strongOpenClass}
+            onClick={(e) => {
+              e.preventDefault();
+              onStrongClick();
+            }}
           >
             {children}
-          </button>
+          </a>
         );
       },
     };
@@ -52,10 +55,7 @@ export function StoryMarkdown({
 
   return (
     <div className={proseClass}>
-      <ReactMarkdown
-        components={components}
-        rehypePlugins={[rehypeSanitize]}
-      >
+      <ReactMarkdown components={components} rehypePlugins={[rehypeSanitize]}>
         {markdown}
       </ReactMarkdown>
     </div>
