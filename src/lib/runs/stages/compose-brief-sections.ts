@@ -65,10 +65,16 @@ export async function composeBriefSections(
   const summaryBlocks = storySummaries
     .map((summary, idx) => {
       const payload = parseStoredStorySummaryJson(summary.detailMarkdown);
+      const headlineLines =
+        summary.sourceHeadlines.length > 0
+          ? summary.sourceHeadlines.map((headline) => `- ${headline}`).join("\n")
+          : "- (none)";
       return [
         `Story ${idx + 1}`,
         `Story cluster ID: ${summary.clusterId}`,
         `Story title: ${summary.title}`,
+        "Source headlines for angle selection (signals for what to highlight; do not quote verbatim unless necessary):",
+        headlineLines,
         "Structured story summary (JSON):",
         JSON.stringify(payload, null, 2),
       ].join("\n");
@@ -86,6 +92,7 @@ export async function composeBriefSections(
     "Keep the bold title short (2-6 words), neutral, and objective.",
     "The bold title must describe the latest concrete development in that story, not the broader ongoing theme. Prefer `latest_development` and the timeline entry with is_latest=true.",
     "No headings, no bullet lists, no inline citations.",
+    "Use each story's source headlines primarily for angle selection and emphasis decisions; they are signals, not standalone facts.",
     "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts from the JSON.",
     "Prioritize newer developments over older background context when deciding emphasis within each section.",
     "Use `as_of` on each JSON object and timeline timestamps as the primary guide to recency; treat the most recent verified updates as primary.",

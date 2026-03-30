@@ -28,6 +28,8 @@ export type ClusterDraft = {
 export type StorySummaryRow = {
   clusterId: string;
   title: string;
+  /** Source headlines used for this story summary, in prompt order, deduplicated. */
+  sourceHeadlines: string[];
   /** Structured story summary as JSON text (stored in `stories.markdown` and `stories.detail_markdown`). */
   detailMarkdown: string;
 };

@@ -139,10 +139,15 @@ export async function generateStorySummaries(input: {
     const latestHoursAgo = toHoursAgo(latestClusterSourceTime ?? null, nowMs);
 
     const sourceTexts: string[] = [];
+    const sourceHeadlines: string[] = [];
     for (const source of clusterSources) {
       const key = `${source.publisherId}::${source.canonicalUrl}`;
       const article = bodyBySource.get(key);
       if (!article) continue;
+      const headline = (source.title ?? article.title ?? "").trim();
+      if (headline.length > 0) {
+        sourceHeadlines.push(decodeHtmlEntities(headline));
+      }
       sourceTexts.push(
         [
           `Source URL: ${source.url}`,
@@ -169,6 +174,7 @@ export async function generateStorySummaries(input: {
         `No extracted article text available for cluster ${cluster.id}`,
       );
     }
+    const uniqueSourceHeadlines = Array.from(new Set(sourceHeadlines));
 
     const prompt = [
       "You condense multiple news articles about the same story into ONE structured JSON object.",
@@ -234,6 +240,7 @@ export async function generateStorySummaries(input: {
     summaries.push({
       clusterId: cluster.id,
       title: finalPayload.story_title,
+      sourceHeadlines: uniqueSourceHeadlines,
       detailMarkdown,
     });
     logLine("story_summary: completed", {

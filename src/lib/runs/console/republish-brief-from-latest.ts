@@ -42,6 +42,7 @@ export async function republishBriefFromLatestStories(): Promise<{
     storySummaries.push({
       clusterId: payload.story_id,
       title: payload.story_title,
+      sourceHeadlines: [],
       detailMarkdown: dm,
     });
     articleIdsPerStoryIndex.push(section.sources.map((s) => s.id));
