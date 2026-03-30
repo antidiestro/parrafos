@@ -21,6 +21,7 @@
   "dependencies": {
     "@fontsource/libertinus-serif": "^5.2.1",
     "@google/genai": "^1.46.0",
+    "@next/third-parties": "^16.2.1",
     "@supabase/supabase-js": "^2.49.1",
     "cheerio": "^1.2.0",
     "langsmith": "^0.5.14",
