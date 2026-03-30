@@ -1,13 +1,14 @@
 # `src/lib/runs`
 
 ## Purpose
-- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), `republishBriefFromLatestStories` for brief-only republish, stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds). Stdout from `npm run generate-brief` stays **event-granular** (including per-item lines where the pipeline already logs each step), but `console/logging.ts` formats context compactly: short timestamps, `[stage] …` markers, truncated strings/URLs, and **no large nested JSON blobs** (errors collapse to a short message, typically `code: message` when present).
+- **Console brief pipeline:** `console/` holds orchestration (`runConsoleWorkflow`), `republishBriefFromLatestStories` for brief-only republish, **`runDiscoverClusterSelectDryRun`** (`discover-cluster-select-dry-run.ts`) for a no-write stdout dry run through discovery → prefetch → cluster → select (`npm run pipeline:dry-run:discover-select`; ignores `RUN_MIN_PCT_NEW_CANDIDATES`), stdout logging, shared types/utils, and `pipeline-constants.ts` (Zod schemas and pipeline thresholds). Stdout from `npm run generate-brief` stays **event-granular** (including per-item lines where the pipeline already logs each step), but `console/logging.ts` formats context compactly: short timestamps, `[stage] …` markers, truncated strings/URLs, and **no large nested JSON blobs** (errors collapse to a short message, typically `code: message` when present).
 - **Stages:** `stages/` implements each step (discovery, prefetch, cluster, select, extract, upsert, summaries, compose brief sections, persist brief output, persist discovery snapshot on success, run records).
 - **Model config:** `constants.ts` — model IDs and recency windows used by orchestrator and stages.
 
 ## Key Files
 - `constants.ts`: Gemini model IDs, recency window hours, and `parseBriefSectionComposeConstraints()` (`BRIEF_SECTION_PARAGRAPH_COUNT`, `BRIEF_SECTION_CHAR_TARGET` for the compose step). Clustering uses `RUN_CLUSTER_MODEL` (`gemini-3.1-flash-lite-preview`); the clustering prompt lists candidates as compact aliases (`c1`, `c2`, … from `clusterPromptAliasForCandidateIndex`) with each source’s headline only—no published timestamps in that prompt. The model returns a long-form `description` per story (JSON key) and source refs in `source_keys`; `clusterSources` maps refs to stable `sourceKeyFor` keys and copies each `description` onto the cluster’s `title` for downstream stages.
 - `console/orchestrator.ts`: wires stages and run row lifecycle.
+- `console/discover-cluster-select-dry-run.ts`: reuses the same discovery, prefetch, clustering, and selection stages as the orchestrator but skips run records, novelty gate, and all persistence; logs a line per selected cluster plus a final summary.
 - `console/pipeline-constants.ts`: cluster/relevance/brief schemas and batch limits (including `clusterSportsFilterSchema` for the pre-cluster sports pass).
 - `stages/run-records.ts`: creates and finalizes `runs` rows; metadata shape is inlined there.
 - `stages/persist-discovery-candidates.ts`: after a **successful** pipeline, inserts the full initial discovery set into `run_discovery_candidates` (deduplicated sorted canonical URLs per run; not the selected-cluster subset).
@@ -35,6 +36,7 @@
 
 ## Verification
 - Run `npm run generate-brief` or `npm run regenerate-brief` (requires an existing published brief).
+- Run `npm run pipeline:dry-run:discover-select` to exercise discover → prefetch → cluster → select without DB writes.
 - `npm run lint`
 - `npx tsc --noEmit`
 

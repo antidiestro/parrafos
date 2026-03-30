@@ -15,7 +15,8 @@
     "lint": "eslint",
     "generate-brief": "dotenv -e .env -- tsx src/scripts/run-workflow-console.ts",
     "regenerate-brief": "dotenv -e .env -- tsx src/scripts/regenerate-brief-from-latest.ts",
-    "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts"
+    "eval:clustering": "dotenv -e .env -- tsx src/scripts/evaluate-clustering.ts",
+    "pipeline:dry-run:discover-select": "dotenv -e .env -- tsx src/scripts/test-discover-cluster-select.ts"
   },
   "dependencies": {
     "@fontsource/libertinus-serif": "^5.2.1",
