@@ -81,6 +81,7 @@ Fill `.env` from **Project Settings → API**:
 | Variable | Purpose |
 | -------- | ------- |
 | `NEXT_PUBLIC_SITE_URL` | **Public site origin** (no trailing slash), e.g. `https://parrafos.com` or `http://localhost:3000`. Baked in at build time so **Open Graph** / social previews use absolute `og:image` URLs; set to your **production** URL on Netlify (or previews will point at the wrong host). |
+| `NEXT_PUBLIC_GTM_ID` | Optional. **Google Tag Manager** container ID (`GTM-…`). When set, the root layout loads GTM (`afterInteractive`) plus the standard `noscript` iframe. Baked in at build time. |
 | `SUPABASE_URL` | **Project URL** (e.g. `https://xxxxx.supabase.co`) |
 | `SUPABASE_ANON_KEY` | **anon public** key |
 | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** key — **server-side only**; never commit or expose to browsers |
