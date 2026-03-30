@@ -93,6 +93,7 @@ export async function composeBriefSections(
     "The bold title must describe the latest concrete development in that story, not the broader ongoing theme. Prefer `latest_development` and the timeline entry with is_latest=true.",
     "No headings, no bullet lists, no inline citations.",
     "Use each story's source headlines primarily for angle selection and emphasis decisions; they are signals, not standalone facts.",
+    "If a story occurs outside Chile, explicitly mention the country in that section.",
     "Use a balanced rewrite: improve coherence and reduce repetition while preserving each story's facts from the JSON.",
     "Prioritize newer developments over older background context when deciding emphasis within each section.",
     "Use `as_of` on each JSON object and timeline timestamps as the primary guide to recency; treat the most recent verified updates as primary.",
