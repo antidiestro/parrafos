@@ -1,8 +1,10 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import {
-  clusterResponseJsonSchema,
-  clusterSchema,
+  clusterEventAssignmentResponseJsonSchema,
+  clusterEventAssignmentSchema,
+  createClusterEventDiscoveryResponseJsonSchema,
+  createClusterEventDiscoverySchema,
   clusterSportsFilterResponseJsonSchema,
   clusterSportsFilterSchema,
 } from "@/lib/runs/console/pipeline-constants";
@@ -10,6 +12,7 @@ import type { CandidateSource, ClusterDraft } from "@/lib/runs/console/types";
 import {
   clusterPromptAliasForCandidateIndex,
   sourceKeyFor,
+  toHoursAgo,
   toSingleLine,
 } from "@/lib/runs/console/utils";
 import { RUN_CLUSTER_MODEL, RUN_EXTRACT_MODEL } from "@/lib/runs/constants";
@@ -92,7 +95,8 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
   }
 
   const aliasToStableKey = new Map<string, string>();
-  const inputLines = afterSportsFilter.map((candidate, index) => {
+  const nowMs = Date.now();
+  const eventDiscoveryLines = afterSportsFilter.map((candidate, index) => {
     const stableKey = sourceKeyFor(
       candidate.publisherId,
       candidate.canonicalUrl,
@@ -103,55 +107,139 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     return `${alias} | ${headline}`;
   });
 
-  const generated = await generateGeminiJson(
+  const articlesCount = afterSportsFilter.length;
+  const minEventsFromArticles = Math.max(1, Math.ceil(articlesCount / 4));
+  const eventDiscoverySchema = createClusterEventDiscoverySchema(
+    minEventsFromArticles,
+  );
+  const eventDiscoveryResponseJsonSchema =
+    createClusterEventDiscoveryResponseJsonSchema(minEventsFromArticles);
+
+  const discoveredEvents = await generateGeminiJson(
     [
-      "Assign every candidate source to exactly one story.",
+      "Identify specific news events from candidate headlines.",
+      `There are ${articlesCount} candidate headlines. You MUST return at least ${minEventsFromArticles} events in the events array; that minimum is ceil(${articlesCount}/4).`,
+      "Each event must use a distinct event_ref; duplicate event_ref strings are not allowed.",
       "Pay special attention to Chilean politics and to international affairs: prioritize accurate clustering and rich descriptions when headlines clearly concern Chile’s government, elections, institutions, major policy, or cross-border diplomatic and geopolitical developments.",
-      "Use as many story clusters as needed so each source_ref appears in exactly one story.",
-      "Each source_ref is the short id at the start of a candidate line (before the first |).",
-      "Return the same source_ref strings in source_keys (not headline text or URLs).",
-      "Group clearly related sources that describe the same concrete event or development.",
-      "Single-source clusters are required when a source does not clearly match any other.",
-      "Do not leave any candidate unassigned.",
-      "For each story, write a rich description field of about 25 to 40 words (can go longer if needed): name the event, key actors, context, and stakes—full sentences, not a short headline.",
-      'Return JSON object: {"stories":[{"description":"...","source_keys":["..."]}]}',
+      "Each event must represent one concrete, specific development or storyline.",
+      "Use enough distinct events to cover the headline set; one event can later receive one or many sources.",
+      "For each event, return a unique short event_ref (e1, e2, e3, ...).",
+      "For each event, write a rich description of about 25 to 40 words (can go longer if needed): name the event, key actors, context, and stakes in full sentences.",
+      'Return JSON object: {"events":[{"event_ref":"e1","description":"..."}]}',
       "Candidate sources (one per line inside the block: source_ref | source headline):",
       "<candidate_sources>",
-      inputLines.join("\n"),
+      eventDiscoveryLines.join("\n"),
       "</candidate_sources>",
     ].join("\n"),
-    clusterSchema,
+    eventDiscoverySchema,
     {
       model: RUN_CLUSTER_MODEL,
-      nativeStructuredOutput: { responseJsonSchema: clusterResponseJsonSchema },
+      nativeStructuredOutput: {
+        responseJsonSchema: eventDiscoveryResponseJsonSchema,
+      },
     },
   );
   logLine("cluster_sources: model response received", {
-    returnedStories: generated.stories.length,
+    pass: "event_discovery",
+    articlesCount,
+    minEventsFromArticles,
+    returnedEvents: discoveredEvents.events.length,
+  });
+
+  const uniqueEvents = new Map<string, string>();
+  for (const row of discoveredEvents.events) {
+    const eventRef = row.event_ref.trim();
+    const description = row.description.trim();
+    if (!eventRef || !description) continue;
+    if (!uniqueEvents.has(eventRef)) uniqueEvents.set(eventRef, description);
+  }
+  if (uniqueEvents.size === 0) {
+    throw new Error("cluster_sources: event discovery returned zero events.");
+  }
+  if (uniqueEvents.size < minEventsFromArticles) {
+    throw new Error(
+      `cluster_sources: event discovery produced ${uniqueEvents.size} unique event_ref values; need at least ${minEventsFromArticles} (ceil(${articlesCount}/4)).`,
+    );
+  }
+
+  const eventList = Array.from(uniqueEvents.entries()).map(
+    ([eventRef, description]) => `${eventRef} | ${description}`,
+  );
+  const assignmentLines = afterSportsFilter.map((candidate, index) => {
+    const alias = clusterPromptAliasForCandidateIndex(index);
+    const headline = toSingleLine(candidate.title) || "(no headline)";
+    const publishedIso = candidate.publishedAt ? new Date(candidate.publishedAt) : null;
+    const publishedAt =
+      publishedIso && Number.isFinite(+publishedIso)
+        ? publishedIso.toISOString()
+        : "unknown";
+    const hoursAgo = toHoursAgo(publishedAt === "unknown" ? null : publishedAt, nowMs);
+    const recency =
+      hoursAgo === null
+        ? `published_at=${publishedAt}`
+        : `published_at=${publishedAt}, hours_ago=${hoursAgo}`;
+    return `${alias} | ${headline} | ${recency}`;
+  });
+
+  const assignedEvents = await generateGeminiJson(
+    [
+      "Assign each candidate source_ref to exactly one event_ref from the provided event list.",
+      "Do not invent new event_ref values.",
+      "Use every candidate source_ref exactly once in assignments.",
+      "If source_ref meaning is uncertain, choose the best-fit event_ref and still assign exactly one.",
+      'Return JSON object: {"assignments":[{"source_ref":"c1","event_ref":"e1"}]}',
+      "Events:",
+      "<events>",
+      eventList.join("\n"),
+      "</events>",
+      "Candidates (source_ref | headline | recency):",
+      "<candidate_sources>",
+      assignmentLines.join("\n"),
+      "</candidate_sources>",
+    ].join("\n"),
+    clusterEventAssignmentSchema,
+    {
+      model: RUN_CLUSTER_MODEL,
+      nativeStructuredOutput: {
+        responseJsonSchema: clusterEventAssignmentResponseJsonSchema,
+      },
+    },
+  );
+  logLine("cluster_sources: model response received", {
+    pass: "event_assignment",
+    returnedAssignments: assignedEvents.assignments.length,
   });
 
   const usedKeys = new Set<string>();
   const clusters: ClusterDraft[] = [];
   let nextClusterNumber = 1;
-  for (const story of generated.stories) {
-    const sourceKeys: string[] = [];
-    for (const raw of story.source_keys) {
-      const trimmed = raw.trim();
-      const stableKey =
-        aliasToStableKey.get(trimmed) ??
-        (sourceByKey.has(trimmed) ? trimmed : null);
-      if (!stableKey) continue;
-      if (!sourceByKey.has(stableKey)) continue;
-      if (usedKeys.has(stableKey)) continue;
-      usedKeys.add(stableKey);
-      sourceKeys.push(stableKey);
+
+  const eventToSourceKeys = new Map<string, string[]>();
+  for (const assignment of assignedEvents.assignments) {
+    const sourceRef = assignment.source_ref.trim();
+    const eventRef = assignment.event_ref.trim();
+    if (!uniqueEvents.has(eventRef)) continue;
+    const stableKey =
+      aliasToStableKey.get(sourceRef) ??
+      (sourceByKey.has(sourceRef) ? sourceRef : null);
+    if (!stableKey) continue;
+    if (!sourceByKey.has(stableKey)) continue;
+    if (usedKeys.has(stableKey)) continue;
+    usedKeys.add(stableKey);
+    const existing = eventToSourceKeys.get(eventRef);
+    if (existing) {
+      existing.push(stableKey);
+    } else {
+      eventToSourceKeys.set(eventRef, [stableKey]);
     }
+  }
 
+  for (const [eventRef, sourceKeys] of eventToSourceKeys) {
     if (sourceKeys.length === 0) continue;
-
     clusters.push({
       id: `cluster_${nextClusterNumber}`,
-      title: story.description.trim() || `Story cluster ${nextClusterNumber}`,
+      title:
+        uniqueEvents.get(eventRef)?.trim() || `Story cluster ${nextClusterNumber}`,
       sourceKeys,
       selectionReason: null,
     });
@@ -184,6 +272,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
     0,
   );
   logLine("cluster_sources: done", {
+    discoveredEvents: uniqueEvents.size,
     clustersCreated: clusters.length,
     assignedSources,
     uniqueCandidates: sourceByKey.size,

@@ -1,34 +1,68 @@
 import { z } from "zod";
 
-export const MAX_RELEVANT_STORIES = 6;
 export const EXISTING_ARTICLE_BATCH_SIZE = 200;
 export const EXISTING_ARTICLE_MAX_ENCODED_URL_CHARS = 7_000;
 
-export const clusterSchema = z.object({
-  stories: z.array(
+const clusterEventDiscoveryItemSchema = z.object({
+  event_ref: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+});
+
+/** `minEvents` is typically ceil(articleCount / 4) from clustering; must be >= 1. */
+export function createClusterEventDiscoverySchema(minEvents: number) {
+  const floor = Math.max(1, Math.floor(minEvents));
+  return z.object({
+    events: z.array(clusterEventDiscoveryItemSchema).min(floor),
+  });
+}
+
+export function createClusterEventDiscoveryResponseJsonSchema(minEvents: number) {
+  const floor = Math.max(1, Math.floor(minEvents));
+  return {
+    type: "object",
+    properties: {
+      events: {
+        type: "array",
+        minItems: floor,
+        items: {
+          type: "object",
+          properties: {
+            event_ref: { type: "string" },
+            description: { type: "string" },
+          },
+          required: ["event_ref", "description"],
+        },
+      },
+    },
+    required: ["events"],
+  };
+}
+
+export const clusterEventAssignmentSchema = z.object({
+  assignments: z.array(
     z.object({
-      description: z.string().trim().min(1),
-      source_keys: z.array(z.string().trim().min(1)).min(1).max(100),
+      source_ref: z.string().trim().min(1),
+      event_ref: z.string().trim().min(1),
     }),
   ),
 });
 
-export const clusterResponseJsonSchema = {
+export const clusterEventAssignmentResponseJsonSchema = {
   type: "object",
   properties: {
-    stories: {
+    assignments: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          description: { type: "string" },
-          source_keys: { type: "array", items: { type: "string" } },
+          source_ref: { type: "string" },
+          event_ref: { type: "string" },
         },
-        required: ["description", "source_keys"],
+        required: ["source_ref", "event_ref"],
       },
     },
   },
-  required: ["stories"],
+  required: ["assignments"],
 };
 
 /** Pre-clustering pass: refs (e.g. c1, c2) to drop as routine non-history-making sports. */
@@ -47,35 +81,82 @@ export const clusterSportsFilterResponseJsonSchema = {
   required: ["remove_source_refs"],
 };
 
-export const relevantStoriesSchema = z.object({
-  selected_clusters: z
-    .array(
-      z.object({
-        cluster_id: z.string().trim().min(1),
-        selection_reason: z.string().trim().min(1).max(220),
-      }),
-    )
-    .max(MAX_RELEVANT_STORIES),
+const rankedClusterSelectionItemSchema = z.object({
+  cluster_id: z.string().trim().min(1),
+  selection_reason: z.string().trim().min(1).max(220),
+  position: z.number().int().min(1).max(200),
 });
 
-export const relevantStoriesResponseJsonSchema = {
-  type: "object",
-  properties: {
-    selected_clusters: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          cluster_id: { type: "string" },
-          selection_reason: { type: "string" },
+const diffuseClusterSelectionItemSchema = z.object({
+  cluster_id: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(220).optional(),
+});
+
+export function createTieredRelevantStoriesSchema(
+  maxPrimary: number,
+  maxSecondary: number,
+) {
+  return z.object({
+    primary_clusters: z.array(rankedClusterSelectionItemSchema).max(maxPrimary),
+    secondary_clusters: z
+      .array(rankedClusterSelectionItemSchema)
+      .max(maxSecondary),
+    diffuse_clusters: z.array(diffuseClusterSelectionItemSchema),
+  });
+}
+
+export function createTieredRelevantStoriesResponseJsonSchema(
+  maxPrimary: number,
+  maxSecondary: number,
+) {
+  return {
+    type: "object",
+    properties: {
+      primary_clusters: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            cluster_id: { type: "string" },
+            selection_reason: { type: "string" },
+            position: { type: "number" },
+          },
+          required: ["cluster_id", "selection_reason", "position"],
         },
-        required: ["cluster_id", "selection_reason"],
+        maxItems: maxPrimary,
       },
-      maxItems: MAX_RELEVANT_STORIES,
+      secondary_clusters: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            cluster_id: { type: "string" },
+            selection_reason: { type: "string" },
+            position: { type: "number" },
+          },
+          required: ["cluster_id", "selection_reason", "position"],
+        },
+        maxItems: maxSecondary,
+      },
+      diffuse_clusters: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            cluster_id: { type: "string" },
+            reason: { type: "string" },
+          },
+          required: ["cluster_id"],
+        },
+      },
     },
-  },
-  required: ["selected_clusters"],
-};
+    required: ["primary_clusters", "secondary_clusters", "diffuse_clusters"],
+  };
+}
+
+export type TieredRelevantStories = z.infer<
+  ReturnType<typeof createTieredRelevantStoriesSchema>
+>;
 
 /**
  * Normalizes model timestamps without Zod's strict `datetime` string format (which can reject

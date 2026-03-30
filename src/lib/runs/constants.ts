@@ -1,10 +1,14 @@
 export const RUN_EXTRACT_MODEL = "gemini-3.1-flash-lite-preview";
-export const RUN_CLUSTER_MODEL = "gemini-3-flash-preview";
+export const RUN_CLUSTER_MODEL = "gemini-3.1-flash-lite-preview";
 export const RUN_RELEVANCE_MODEL = "gemini-3.1-flash-lite-preview";
 export const RUN_BRIEF_MODEL = "gemini-3.1-flash-lite-preview";
 export const RUN_MODEL = RUN_EXTRACT_MODEL;
 export const RUN_RECENCY_WINDOW_SHORT_HOURS = 6;
 export const RUN_RECENCY_WINDOW_MEDIUM_HOURS = 24;
+const RUN_SELECT_PRIMARY_MAX_DEFAULT = 6;
+const RUN_SELECT_PRIMARY_MAX_ABS_MAX = 12;
+const RUN_SELECT_SECONDARY_MAX_DEFAULT = 4;
+const RUN_SELECT_SECONDARY_MAX_ABS_MAX = 20;
 
 /**
  * When set (0–100), `generate-brief` stops after discovery if the share of
@@ -74,4 +78,24 @@ export function parseBriefSectionComposeConstraints(): BriefSectionComposeConstr
     BRIEF_SECTION_CHAR_TARGET_ABS_MAX,
   );
   return { paragraphCount, charTarget };
+}
+
+export function parseRunSelectPrimaryMax(): number {
+  return parseOptionalInt(
+    process.env.RUN_SELECT_PRIMARY_MAX,
+    RUN_SELECT_PRIMARY_MAX_DEFAULT,
+    "RUN_SELECT_PRIMARY_MAX",
+    1,
+    RUN_SELECT_PRIMARY_MAX_ABS_MAX,
+  );
+}
+
+export function parseRunSelectSecondaryMax(): number {
+  return parseOptionalInt(
+    process.env.RUN_SELECT_SECONDARY_MAX,
+    RUN_SELECT_SECONDARY_MAX_DEFAULT,
+    "RUN_SELECT_SECONDARY_MAX",
+    0,
+    RUN_SELECT_SECONDARY_MAX_ABS_MAX,
+  );
 }

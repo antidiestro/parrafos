@@ -1,4 +1,6 @@
 import {
+  parseRunSelectPrimaryMax,
+  parseRunSelectSecondaryMax,
   RUN_CLUSTER_MODEL,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
@@ -28,9 +30,13 @@ function prefetchConcurrency(): number {
  */
 export async function runDiscoverClusterSelectDryRun() {
   const startedAt = Date.now();
+  const selectPrimaryMax = parseRunSelectPrimaryMax();
+  const selectSecondaryMax = parseRunSelectSecondaryMax();
   logLine("pipeline dry-run started", {
     cluster: RUN_CLUSTER_MODEL,
     relevance: RUN_RELEVANCE_MODEL,
+    selectPrimaryMax,
+    selectSecondaryMax,
     note: "prefetch included for production-parity headlines; no DB writes; RUN_MIN_PCT_NEW_CANDIDATES ignored",
   });
 

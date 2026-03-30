@@ -1,13 +1,14 @@
 import { generateGeminiJson } from "@/lib/gemini/generate";
 import {
+  parseRunSelectPrimaryMax,
+  parseRunSelectSecondaryMax,
   RUN_RECENCY_WINDOW_MEDIUM_HOURS,
   RUN_RECENCY_WINDOW_SHORT_HOURS,
   RUN_RELEVANCE_MODEL,
 } from "@/lib/runs/constants";
 import {
-  MAX_RELEVANT_STORIES,
-  relevantStoriesResponseJsonSchema,
-  relevantStoriesSchema,
+  createTieredRelevantStoriesResponseJsonSchema,
+  createTieredRelevantStoriesSchema,
 } from "@/lib/runs/console/pipeline-constants";
 import { divider, logLine } from "@/lib/runs/console/logging";
 import type {
@@ -40,6 +41,8 @@ export async function selectClusters(input: {
   }
 
   const nowMs = Date.now();
+  const maxPrimary = parseRunSelectPrimaryMax();
+  const maxSecondary = parseRunSelectSecondaryMax();
   const evidence = clustersForSelection.map((cluster) => {
     const sources = cluster.sourceKeys
       .map((key) => input.sourceByKey.get(key))
@@ -97,50 +100,89 @@ export async function selectClusters(input: {
 
   const generated = await generateGeminiJson(
     [
-      "Choose the most relevant stories for extraction.",
-      `Return exactly ${MAX_RELEVANT_STORIES} cluster IDs when there are at least ${MAX_RELEVANT_STORIES} eligible stories.`,
-      `If there are fewer than ${MAX_RELEVANT_STORIES} eligible stories, return all eligible cluster IDs.`,
+      "Choose cluster tiers for extraction prioritization.",
+      `Return at most ${maxPrimary} rows in primary_clusters using positions 1..${maxPrimary}.`,
+      `Return at most ${maxSecondary} rows in secondary_clusters using positions 1..${maxSecondary}.`,
+      "Return any remaining clusters in diffuse_clusters (uncapped, no position needed).",
+      "Every eligible cluster_id must appear in exactly one bucket: primary_clusters, secondary_clusters, or diffuse_clusters.",
+      "A diffuse cluster means the cluster does not clearly map to one concrete specific news event.",
       "Prioritize public impact and broad relevance.",
       `Prioritize clusters with concrete updates in the last ${RUN_RECENCY_WINDOW_SHORT_HOURS}-${RUN_RECENCY_WINDOW_MEDIUM_HOURS} hours.`,
       "Prefer newest developments over stale recap.",
       "Deprioritize repetitive, low-consequence, or evergreen items when stronger updates exist.",
       "Ignore routine day-to-day crime coverage unless it has extraordinary national or institutional impact.",
       "Sports stories are only acceptable when they are clearly history-making (for example, landmark championship wins, unprecedented records, or major structural milestones).",
-      "For each selected cluster, return a short selection_reason.",
+      "For primary_clusters and secondary_clusters, include selection_reason and integer position.",
       "Stories:",
       JSON.stringify(evidence),
     ].join("\n"),
-    relevantStoriesSchema,
+    createTieredRelevantStoriesSchema(maxPrimary, maxSecondary),
     {
       model: RUN_RELEVANCE_MODEL,
       nativeStructuredOutput: {
-        responseJsonSchema: relevantStoriesResponseJsonSchema,
+        responseJsonSchema: createTieredRelevantStoriesResponseJsonSchema(
+          maxPrimary,
+          maxSecondary,
+        ),
       },
     },
   );
   logLine("select_clusters: model response received", {
-    selectedReturned: generated.selected_clusters.length,
+    primaryReturned: generated.primary_clusters.length,
+    secondaryReturned: generated.secondary_clusters.length,
+    diffuseReturned: generated.diffuse_clusters.length,
   });
 
-  const selectionById = new Map<string, { reason: string }>();
-  for (const row of generated.selected_clusters) {
-    selectionById.set(row.cluster_id, { reason: row.selection_reason.trim() });
-    if (selectionById.size >= MAX_RELEVANT_STORIES) break;
+  const selectionById = new Map<string, { reason: string; position: number }>();
+  const primaryRows = generated.primary_clusters
+    .filter((row) => Number.isInteger(row.position) && row.position >= 1)
+    .slice()
+    .sort((a, b) => a.position - b.position || a.cluster_id.localeCompare(b.cluster_id))
+    .slice(0, maxPrimary);
+  for (const row of primaryRows) {
+    if (selectionById.has(row.cluster_id)) continue;
+    selectionById.set(row.cluster_id, {
+      reason: row.selection_reason.trim(),
+      position: row.position,
+    });
   }
 
-  const selected = clustersForSelection
+  const selectedWithPosition = clustersForSelection
     .filter((cluster) => selectionById.has(cluster.id))
     .map((cluster) => ({
-      ...cluster,
-      selectionReason: selectionById.get(cluster.id)?.reason ?? null,
+      cluster: {
+        ...cluster,
+        selectionReason: selectionById.get(cluster.id)?.reason ?? null,
+      },
+      position: selectionById.get(cluster.id)?.position ?? Number.MAX_SAFE_INTEGER,
     }));
-  if (selected.length === 0) {
+  selectedWithPosition.sort(
+    (a, b) => a.position - b.position || a.cluster.id.localeCompare(b.cluster.id),
+  );
+  const selectedFinal = selectedWithPosition.map((row) => row.cluster);
+  if (selectedFinal.length === 0) {
     throw new Error("Relevance selection returned zero clusters.");
   }
 
+  const secondaryIds = generated.secondary_clusters
+    .filter((row) => row.cluster_id.trim().length > 0)
+    .sort((a, b) => a.position - b.position || a.cluster_id.localeCompare(b.cluster_id))
+    .slice(0, maxSecondary)
+    .map((row) => row.cluster_id);
+  const diffuseIds = generated.diffuse_clusters
+    .filter((row) => row.cluster_id.trim().length > 0)
+    .map((row) => row.cluster_id);
+
   logLine("select_clusters: done", {
-    selectedClusters: selected.length,
-    selectedSources: selected.reduce((acc, row) => acc + row.sourceKeys.length, 0),
+    selectedPrimaryClusters: selectedFinal.length,
+    selectedPrimarySources: selectedFinal.reduce(
+      (acc, row) => acc + row.sourceKeys.length,
+      0,
+    ),
+    secondaryClusters: secondaryIds.length,
+    diffuseClusters: diffuseIds.length,
+    secondaryClusterIds: secondaryIds.join(","),
+    diffuseClusterIds: diffuseIds.join(","),
   });
-  return selected;
+  return selectedFinal;
 }
