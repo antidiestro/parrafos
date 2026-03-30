@@ -68,7 +68,15 @@ function hostnameMatchesPublisher(
   );
 }
 
+/** CNN Chile-style slug tail: `…_20260329` (underscore + YYYYMMDD). */
+function hasTrailingSlugYyyymmdd(segment: string): boolean {
+  return /_(19|20)\d{6}$/.test(segment);
+}
+
 function hasDatePattern(segments: string[]): boolean {
+  const last = segments[segments.length - 1] ?? "";
+  if (last && hasTrailingSlugYyyymmdd(last)) return true;
+
   for (let index = 0; index <= segments.length - 3; index += 1) {
     const yyyy = segments[index];
     const mm = segments[index + 1];
@@ -86,6 +94,12 @@ function hasDatePattern(segments: string[]): boolean {
   );
 }
 
+/** `/seccion/slug`_yyyymmdd` / long hyphenated slugs — no third path segment. */
+function isLikelyTwoSegmentArticle(lastNormalizedSlug: string): boolean {
+  if (hasTrailingSlugYyyymmdd(lastNormalizedSlug)) return true;
+  return /-/.test(lastNormalizedSlug) && lastNormalizedSlug.length >= 15;
+}
+
 function getArticleUrlScore(raw: string, baseUrl: string): number | null {
   try {
     const resolved = new URL(raw, baseUrl);
@@ -95,7 +109,7 @@ function getArticleUrlScore(raw: string, baseUrl: string): number | null {
     if (!hostnameMatchesPublisher(candidateHost, baseHost)) return null;
 
     const segments = resolved.pathname.split("/").filter(Boolean);
-    if (segments.length < 3) return null;
+    if (segments.length < 2) return null;
 
     const normalizedSegments = segments.map((segment) => segment.toLowerCase());
     const last = normalizedSegments[normalizedSegments.length - 1] ?? "";
@@ -110,8 +124,13 @@ function getArticleUrlScore(raw: string, baseUrl: string): number | null {
       return null;
     }
 
+    if (segments.length === 2 && !isLikelyTwoSegmentArticle(last)) {
+      return null;
+    }
+
     let score = 0;
-    if (segments.length >= 4) score += 1;
+    if (segments.length >= 4) score += 2;
+    else if (segments.length >= 3) score += 1;
     if (hasDatePattern(normalizedSegments)) score += 2;
     if (
       normalizedSegments.some((segment) =>
@@ -188,7 +207,10 @@ function parseNaiveDateTimeParts(value: string): {
   return { year, month, day, hour, minute, second, millisecond };
 }
 
-function getTimeZoneOffsetMinutes(timeZone: string, utcMs: number): number | null {
+function getTimeZoneOffsetMinutes(
+  timeZone: string,
+  utcMs: number,
+): number | null {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone,
     timeZoneName: "shortOffset",
@@ -207,7 +229,10 @@ function getTimeZoneOffsetMinutes(timeZone: string, utcMs: number): number | nul
   return sign * (hours * 60 + minutes);
 }
 
-function parseWithTimezoneFallback(value: string, timeZone: string): Date | null {
+function parseWithTimezoneFallback(
+  value: string,
+  timeZone: string,
+): Date | null {
   const parts = parseNaiveDateTimeParts(value);
   if (!parts) return null;
 
@@ -239,8 +264,8 @@ function toIsoOrNull(value: string | null | undefined): string | null {
 
   const parsed = hasExplicitTimezone(trimmed)
     ? new Date(trimmed)
-    : parseWithTimezoneFallback(trimmed, getPublishedAtFallbackTimezone()) ??
-      new Date(trimmed);
+    : (parseWithTimezoneFallback(trimmed, getPublishedAtFallbackTimezone()) ??
+      new Date(trimmed));
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
 }
@@ -337,7 +362,7 @@ export function extractArticleCandidatesFromHomepage(
       if (b.score !== a.score) return b.score - a.score;
       return a.firstSeenIndex - b.firstSeenIndex;
     })
-    .slice(0, 20)
+    .slice(0, 30)
     .map((entry) => ({ url: entry.url }));
 }
 
