@@ -153,15 +153,15 @@ export function StorySidebar({
         aria-modal="true"
         aria-label="Detalle y fuentes"
         onTransitionEnd={handleAsideTransitionEnd}
-        className={`absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-zinc-200 bg-[var(--paper)] shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-transparent bg-(--paper) shadow-2xl transition-transform duration-300 ease-out sm:border-transparent sm:dark:border-transparent lg:border-zinc-200 lg:dark:border-zinc-700 ${
           uiOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-center justify-end border-b border-zinc-200 px-6 py-4 sm:px-9">
+        <header className="flex shrink-0 items-center justify-end px-6 py-4 sm:px-9">
           <button
             type="button"
             onClick={requestClose}
-            className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 font-sans text-sm text-zinc-700 hover:bg-zinc-50"
+            className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 font-sans text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
           >
             Cerrar
           </button>
@@ -171,16 +171,13 @@ export function StorySidebar({
           {longSummaryText ? (
             <>
               {summaryBodyMarkdown ? (
-                <StoryMarkdown
-                  markdown={summaryBodyMarkdown}
-                  variant="compact"
-                />
+                <StoryMarkdown markdown={summaryBodyMarkdown} />
               ) : null}
               <div
-                className="mt-4 border-t border-zinc-200 pt-3 pb-1"
+                className="mt-4 pt-3 pb-1"
                 role="presentation"
               >
-                <p className="font-sans text-xs font-medium uppercase tracking-wide text-zinc-500">
+                <p className="font-sans text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   Fuentes
                 </p>
               </div>
@@ -195,25 +192,25 @@ export function StorySidebar({
               return (
                 <li
                   key={source.id}
-                  className="border-b border-zinc-200/70 py-1.5 last:border-b-0"
+                  className="py-1.5"
                 >
                   <a
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex gap-2 rounded-md py-0.5 pl-0.5 pr-1 outline-none transition-colors hover:bg-zinc-100/80 focus-visible:ring-2 focus-visible:ring-zinc-400"
+                    className="group flex gap-2 rounded-md py-0.5 pl-0.5 pr-1 outline-none transition-colors hover:bg-zinc-100/80 focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:bg-zinc-800/70 dark:focus-visible:ring-zinc-500"
                   >
                     <SourceFavicon
                       faviconUrl={source.favicon_url}
                       title={titleText}
-                      className="mt-0.5 h-6 w-6 shrink-0 rounded border border-zinc-200 bg-white object-contain p-px"
+                      className="mt-0.5 h-6 w-6 shrink-0 rounded border border-zinc-200 bg-white object-contain p-px dark:border-zinc-600 dark:bg-zinc-900"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-xs font-medium leading-snug text-zinc-900 group-hover:underline">
+                      <p className="line-clamp-2 text-xs font-medium leading-snug text-zinc-900 group-hover:underline dark:text-zinc-100">
                         {titleText}
                       </p>
                       {source.publisher_name ? (
-                        <p className="mt-0.5 truncate text-[11px] leading-tight text-zinc-500">
+                        <p className="mt-0.5 truncate text-[11px] leading-tight text-zinc-500 dark:text-zinc-400">
                           {source.publisher_name}
                         </p>
                       ) : null}

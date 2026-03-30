@@ -56,7 +56,7 @@ function SourcePill({
     <button
       type="button"
       onClick={onClick}
-      className="group inline-flex shrink-0 cursor-pointer items-center gap-2 p-0 text-xs font-sans text-zinc-700"
+      className="group inline-flex shrink-0 cursor-pointer items-center gap-2 p-0 text-xs font-sans text-zinc-700 dark:text-zinc-300"
     >
       <span className="inline-flex items-center gap-1 [&_.relative>:first-child]:opacity-75 [&_.relative>:first-child]:transition-[filter,opacity] [&_.relative>:first-child]:duration-150 group-hover:[&_.relative>:first-child]:opacity-100 group-hover:[&_.relative>:first-child]:grayscale-0">
         {displaySources.map((source) => (
@@ -67,16 +67,16 @@ function SourcePill({
             <SourceFavicon
               faviconUrl={source.favicon_url}
               title={source.title ?? source.source_url ?? source.canonical_url}
-              className="h-5 w-5 rounded-full mix-blend-multiply object-contain"
+              className="h-5 w-5 rounded-full object-contain"
             />
             <span
-              className="pointer-events-none absolute inset-0 z-10 rounded-full ring-1 ring-inset ring-zinc-900/15"
+              className="pointer-events-none absolute inset-0 z-10 rounded-full ring-1 ring-inset ring-zinc-900/15 dark:ring-zinc-100/15"
               aria-hidden
             />
           </span>
         ))}
       </span>
-      <span className="transition-colors group-hover:text-black">
+      <span className="transition-colors group-hover:text-zinc-900 dark:group-hover:text-zinc-100">
         {section.sources.length}{" "}
         {section.sources.length === 1 ? "fuente" : "fuentes"}
       </span>

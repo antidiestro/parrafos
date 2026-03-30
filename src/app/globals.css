@@ -3,6 +3,30 @@
 @layer base {
   :root {
     --paper: #ebe6dc;
+    --text: #27231f;
+    --muted: #4a433c;
+    --link: #201d1a;
+    --code-bg: #ddd4c7;
+    --code-text: #1f1c19;
+    --strong-link: #1d1a17;
+    --strong-link-hover: #080706;
+    --strong-decoration: #7f7366;
+    --focus-outline: #7f7366;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0d0c0b;
+      --text: #e4ddd1;
+      --muted: #c4bbaa;
+      --link: #f2ebdf;
+      --code-bg: #24201b;
+      --code-text: #f2ebdf;
+      --strong-link: #f2ebdf;
+      --strong-link-hover: #ffffff;
+      --strong-decoration: #9f927e;
+      --focus-outline: #b5a58f;
+    }
   }
 
   html {
@@ -12,5 +36,93 @@
   body {
     min-height: 100vh;
     background-color: var(--paper);
+    color: var(--text);
+  }
+}
+
+@layer components {
+  .story-md {
+    font-size: 1.125rem;
+    line-height: 1.625;
+    color: var(--text);
+  }
+
+  .story-md a {
+    color: var(--link);
+    text-decoration: underline;
+  }
+
+  .story-md code {
+    border-radius: 0.25rem;
+    padding: 0 0.25rem;
+    background-color: var(--code-bg);
+    color: var(--code-text);
+  }
+
+  .story-md h1,
+  .story-md h2,
+  .story-md h3,
+  .story-md h4,
+  .story-md h5,
+  .story-md h6 {
+    margin-bottom: 0.5rem;
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .story-md h1:first-child,
+  .story-md h2:first-child,
+  .story-md h3:first-child,
+  .story-md h4:first-child,
+  .story-md h5:first-child,
+  .story-md h6:first-child {
+    margin-top: 0;
+  }
+
+  .story-md p {
+    margin-bottom: 1rem;
+  }
+
+  .story-md p:last-child {
+    margin-bottom: 0;
+  }
+
+  .story-md ul {
+    margin-bottom: 1rem;
+    list-style-type: disc;
+    padding-left: 1.5rem;
+  }
+
+  .story-md li {
+    margin-bottom: 0.25rem;
+  }
+
+  .story-md strong {
+    font-weight: 600;
+  }
+
+  .story-md-strong-open {
+    display: inline;
+    max-width: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    vertical-align: baseline;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    color: var(--strong-link);
+    text-decoration-color: var(--strong-decoration);
+  }
+
+  .story-md-strong-open:focus-visible {
+    border-radius: 0.125rem;
+    outline: 2px solid var(--focus-outline);
+    outline-offset: 2px;
+  }
+
+  .story-md-strong-open:hover {
+    color: var(--strong-link-hover);
   }
 }
