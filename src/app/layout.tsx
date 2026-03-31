@@ -24,8 +24,10 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Párrafos",
   description: SITE_DESCRIPTION,
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.png",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     title: "Párrafos",
