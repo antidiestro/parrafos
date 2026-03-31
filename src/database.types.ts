@@ -238,29 +238,41 @@ export type Database = {
       stories: {
         Row: {
           brief_id: string
+          cluster_id: string | null
           created_at: string
           detail_markdown: string | null
           id: string
           markdown: string
           position: number
+          selection_reason: string | null
+          source_count: number | null
+          tier: string
           updated_at: string
         }
         Insert: {
           brief_id: string
+          cluster_id?: string | null
           created_at?: string
           detail_markdown?: string | null
           id?: string
           markdown: string
           position: number
+          selection_reason?: string | null
+          source_count?: number | null
+          tier?: string
           updated_at?: string
         }
         Update: {
           brief_id?: string
+          cluster_id?: string | null
           created_at?: string
           detail_markdown?: string | null
           id?: string
           markdown?: string
           position?: number
+          selection_reason?: string | null
+          source_count?: number | null
+          tier?: string
           updated_at?: string
         }
         Relationships: [

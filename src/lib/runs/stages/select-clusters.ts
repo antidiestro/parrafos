@@ -17,10 +17,15 @@ import type {
 } from "@/lib/runs/console/types";
 import { toHoursAgo, toRecentCount, toSingleLine } from "@/lib/runs/console/utils";
 
+export type SelectedClusterTiers = {
+  primaryClusters: ClusterDraft[];
+  secondaryClusters: ClusterDraft[];
+};
+
 export async function selectClusters(input: {
   clusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
-}): Promise<ClusterDraft[]> {
+}): Promise<SelectedClusterTiers> {
   divider("select_clusters");
   if (input.clusters.length === 0) {
     throw new Error("No eligible clusters available for selection.");
@@ -136,56 +141,85 @@ export async function selectClusters(input: {
     diffuseReturned: generated.diffuse_clusters.length,
   });
 
-  const selectionById = new Map<string, { reason: string; position: number }>();
+  const primarySelectionById = new Map<string, { reason: string; position: number }>();
   const primaryRows = generated.primary_clusters
     .filter((row) => Number.isInteger(row.position) && row.position >= 1)
     .slice()
     .sort((a, b) => a.position - b.position || a.cluster_id.localeCompare(b.cluster_id))
     .slice(0, maxPrimary);
   for (const row of primaryRows) {
-    if (selectionById.has(row.cluster_id)) continue;
-    selectionById.set(row.cluster_id, {
+    if (primarySelectionById.has(row.cluster_id)) continue;
+    primarySelectionById.set(row.cluster_id, {
       reason: row.selection_reason.trim(),
       position: row.position,
     });
   }
 
-  const selectedWithPosition = clustersForSelection
-    .filter((cluster) => selectionById.has(cluster.id))
+  const selectedPrimaryWithPosition = clustersForSelection
+    .filter((cluster) => primarySelectionById.has(cluster.id))
     .map((cluster) => ({
       cluster: {
         ...cluster,
-        selectionReason: selectionById.get(cluster.id)?.reason ?? null,
+        selectionReason: primarySelectionById.get(cluster.id)?.reason ?? null,
       },
-      position: selectionById.get(cluster.id)?.position ?? Number.MAX_SAFE_INTEGER,
+      position:
+        primarySelectionById.get(cluster.id)?.position ?? Number.MAX_SAFE_INTEGER,
     }));
-  selectedWithPosition.sort(
+  selectedPrimaryWithPosition.sort(
     (a, b) => a.position - b.position || a.cluster.id.localeCompare(b.cluster.id),
   );
-  const selectedFinal = selectedWithPosition.map((row) => row.cluster);
-  if (selectedFinal.length === 0) {
+  const primaryClusters = selectedPrimaryWithPosition.map((row) => row.cluster);
+  if (primaryClusters.length === 0) {
     throw new Error("Relevance selection returned zero clusters.");
   }
 
-  const secondaryIds = generated.secondary_clusters
-    .filter((row) => row.cluster_id.trim().length > 0)
+  const secondarySelectionById = new Map<string, { reason: string; position: number }>();
+  const secondaryRows = generated.secondary_clusters
+    .filter(
+      (row) =>
+        row.cluster_id.trim().length > 0 &&
+        Number.isInteger(row.position) &&
+        row.position >= 1,
+    )
     .sort((a, b) => a.position - b.position || a.cluster_id.localeCompare(b.cluster_id))
-    .slice(0, maxSecondary)
-    .map((row) => row.cluster_id);
+    .slice(0, maxSecondary);
+  for (const row of secondaryRows) {
+    if (secondarySelectionById.has(row.cluster_id)) continue;
+    secondarySelectionById.set(row.cluster_id, {
+      reason: row.selection_reason.trim(),
+      position: row.position,
+    });
+  }
+  const secondarySelectedWithPosition = clustersForSelection
+    .filter((cluster) => secondarySelectionById.has(cluster.id))
+    .map((cluster) => ({
+      cluster: {
+        ...cluster,
+        selectionReason: secondarySelectionById.get(cluster.id)?.reason ?? null,
+      },
+      position:
+        secondarySelectionById.get(cluster.id)?.position ?? Number.MAX_SAFE_INTEGER,
+    }));
+  secondarySelectedWithPosition.sort(
+    (a, b) => a.position - b.position || a.cluster.id.localeCompare(b.cluster.id),
+  );
+  const secondaryClusters = secondarySelectedWithPosition.map((row) => row.cluster);
+
+  const secondaryIds = secondaryClusters.map((row) => row.id);
   const diffuseIds = generated.diffuse_clusters
     .filter((row) => row.cluster_id.trim().length > 0)
     .map((row) => row.cluster_id);
 
   logLine("select_clusters: done", {
-    selectedPrimaryClusters: selectedFinal.length,
-    selectedPrimarySources: selectedFinal.reduce(
+    selectedPrimaryClusters: primaryClusters.length,
+    selectedPrimarySources: primaryClusters.reduce(
       (acc, row) => acc + row.sourceKeys.length,
       0,
     ),
-    secondaryClusters: secondaryIds.length,
+    secondaryClusters: secondaryClusters.length,
     diffuseClusters: diffuseIds.length,
     secondaryClusterIds: secondaryIds.join(","),
     diffuseClusterIds: diffuseIds.join(","),
   });
-  return selectedFinal;
+  return { primaryClusters, secondaryClusters };
 }

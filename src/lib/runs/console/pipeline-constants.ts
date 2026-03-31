@@ -275,11 +275,11 @@ export const simpleStorySummarySchema = z
       .min(1)
       .max(400)
       .describe(
-        "Single Spanish sentence: the most important new development. Must match the timeline entry where is_latest is true.",
+        "Single Spanish sentence: the most important new development. Align with the timeline entry where is_latest is true when possible.",
       ),
 
     latest_development_at: instantOrNull.describe(
-      "Timestamp of that newest development when known from sources; otherwise null. Must equal the timestamp of the timeline entry with is_latest=true.",
+      "Timestamp of that newest development when known from sources; otherwise null.",
     ),
 
     timeline: z
@@ -326,14 +326,6 @@ export const simpleStorySummarySchema = z
     }
     const latest = latestItems[0];
     if (!latest) return;
-    if (latest.timestamp !== value.latest_development_at) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["latest_development_at"],
-        message:
-          "latest_development_at must match the timestamp field of the timeline entry with is_latest=true (both may be null).",
-      });
-    }
   });
 
 export type StorySummaryJson = z.infer<typeof simpleStorySummarySchema>;

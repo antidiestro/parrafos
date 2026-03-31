@@ -18,4 +18,5 @@ export { composeBriefSections } from "@/lib/runs/stages/compose-brief-sections";
 export {
   persistBriefOutput,
   persistBriefOutputWithArticleIds,
+  upsertSecondarySourceMetadata,
 } from "@/lib/runs/stages/persist-brief-output";

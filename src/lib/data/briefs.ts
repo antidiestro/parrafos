@@ -22,6 +22,16 @@ export type BriefSectionSourceRow = Pick<
 
 export type LatestBriefBundle = {
   brief: BriefRow;
+  secondaryStories: Array<{
+    id: string;
+    brief_id: string;
+    position: number;
+    cluster_id: string | null;
+    title: string;
+    selection_reason: string | null;
+    source_count: number | null;
+    sources: BriefSectionSourceRow[];
+  }>;
   sections: Array<
     BriefSectionRow & {
       story: StoryRow;
@@ -126,11 +136,38 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
   }
 
   const sectionRows = sectionRowsRaw ?? [];
-  if (sectionRows.length === 0) {
-    return { brief, sections: [] };
+  const { data: secondaryStoriesRaw, error: secondaryStoriesError } =
+    await supabase
+      .from("stories")
+      .select(
+        "id,brief_id,position,cluster_id,markdown,selection_reason,source_count",
+      )
+      .eq("brief_id", brief.id)
+      .eq("tier", "secondary")
+      .order("position", { ascending: true });
+  if (secondaryStoriesError) {
+    throw new Error(secondaryStoriesError.message);
+  }
+  const secondaryStories = (secondaryStoriesRaw ?? []).map((row) => ({
+    id: row.id,
+    brief_id: row.brief_id,
+    position: row.position,
+    cluster_id: row.cluster_id,
+    title: row.markdown,
+    selection_reason: row.selection_reason,
+    source_count: row.source_count,
+    sources: [],
+  }));
+  const storyIds = sectionRows.map((row) => row.story_id);
+  const secondaryStoryIds = secondaryStories.map((story) => story.id);
+  const storyIdsForSources = Array.from(
+    new Set([...storyIds, ...secondaryStoryIds]),
+  );
+
+  if (storyIdsForSources.length === 0) {
+    return { brief, secondaryStories, sections: [] };
   }
 
-  const storyIds = sectionRows.map((row) => row.story_id);
   const { data: stories, error: storiesError } = await supabase
     .from("stories")
     .select(
@@ -144,7 +181,7 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
   const { data: storyArticles, error: storyArticlesError } = await supabase
     .from("story_articles")
     .select("story_id,article_id")
-    .in("story_id", storyIds)
+    .in("story_id", storyIdsForSources)
     .order("article_id", { ascending: true });
   if (storyArticlesError) {
     throw new Error(storyArticlesError.message);
@@ -222,42 +259,52 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
     articleIdsByStoryId.set(row.story_id, existing);
   }
 
+  const sourceRowsForStoryId = (storyId: string): BriefSectionSourceRow[] =>
+    articleIdsByStoryId
+      .get(storyId)
+      ?.map((articleId) => articleById.get(articleId))
+      .filter((article): article is NonNullable<typeof article> =>
+        Boolean(article),
+      )
+      .map((article) => {
+        const url = article.source_url ?? article.canonical_url;
+        let faviconUrl: string | null = null;
+        let hostnameFallback = "";
+        try {
+          const hostname = new URL(url).hostname;
+          hostnameFallback = hostname.startsWith("www.")
+            ? hostname.slice(4)
+            : hostname;
+          faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
+        } catch {
+          faviconUrl = null;
+        }
+        const publisherName =
+          publisherNameById.get(article.publisher_id) ?? hostnameFallback;
+        return {
+          ...article,
+          favicon_url: faviconUrl,
+          publisher_name: publisherName,
+        };
+      }) ?? [];
+
+  const hydratedSecondaryStories = secondaryStories.map((story) => ({
+    ...story,
+    sources: sourceRowsForStoryId(story.id),
+  }));
+
+  if (sectionRows.length === 0) {
+    return { brief, secondaryStories: hydratedSecondaryStories, sections: [] };
+  }
+
   const hydratedSections = sectionRows
     .map((section) => {
       const story = storyById.get(section.story_id);
       if (!story) return null;
-      const sourceRows =
-        articleIdsByStoryId
-          .get(section.story_id)
-          ?.map((articleId) => articleById.get(articleId))
-          .filter((article): article is NonNullable<typeof article> =>
-            Boolean(article),
-          )
-          .map((article) => {
-            const url = article.source_url ?? article.canonical_url;
-            let faviconUrl: string | null = null;
-            let hostnameFallback = "";
-            try {
-              const hostname = new URL(url).hostname;
-              hostnameFallback = hostname.startsWith("www.")
-                ? hostname.slice(4)
-                : hostname;
-              faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
-            } catch {
-              faviconUrl = null;
-            }
-            const publisherName =
-              publisherNameById.get(article.publisher_id) ?? hostnameFallback;
-            return {
-              ...article,
-              favicon_url: faviconUrl,
-              publisher_name: publisherName,
-            };
-          }) ?? [];
       return {
         ...section,
         story,
-        sources: sourceRows,
+        sources: sourceRowsForStoryId(section.story_id),
         longSummaryText: longSummaryTextFromStoryMarkdown(story.markdown),
       };
     })
@@ -271,7 +318,11 @@ export async function getLatestPublishedBriefWithStories(): Promise<LatestBriefB
       } => Boolean(section),
     );
 
-  return { brief, sections: hydratedSections };
+  return {
+    brief,
+    secondaryStories: hydratedSecondaryStories,
+    sections: hydratedSections,
+  };
 }
 
 /** Same “latest published brief” ordering as `getLatestPublishedBriefWithStories`. */

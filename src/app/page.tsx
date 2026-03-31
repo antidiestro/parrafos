@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { BriefViewer } from "@/components/brief-viewer";
+import { SecondaryStoriesList } from "@/components/secondary-stories-list";
 import {
   getLatestPublishedBriefWithStories,
   sortBriefSectionsByMedianSourceRecency,
@@ -146,6 +147,18 @@ export default async function HomePage() {
           />
         </article>
       )}
+
+      {bundle && bundle.secondaryStories.length > 0 ? (
+        <section className="mt-16 space-y-4">
+          <h2
+            className="text-2xl leading-relaxed text-(--text)"
+            lang="es"
+          >
+            También estamos mirando
+          </h2>
+          <SecondaryStoriesList stories={bundle.secondaryStories} />
+        </section>
+      ) : null}
 
       <div className="mt-16">
         <a

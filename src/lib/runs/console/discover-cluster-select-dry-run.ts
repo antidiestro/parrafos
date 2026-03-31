@@ -58,9 +58,12 @@ export async function runDiscoverClusterSelectDryRun() {
     throw new Error("No eligible clusters were created.");
   }
 
-  const selectedClusters = await selectClusters({ clusters, sourceByKey });
+  const { primaryClusters, secondaryClusters } = await selectClusters({
+    clusters,
+    sourceByKey,
+  });
 
-  for (const row of selectedClusters) {
+  for (const row of primaryClusters) {
     logLine("dry_run: selected_cluster", {
       id: row.id,
       title: toSingleLine(row.title),
@@ -75,11 +78,12 @@ export async function runDiscoverClusterSelectDryRun() {
     discovered: discovered.length,
     metadataReadyRecent: metadataReadyRecent.length,
     clusters: clusters.length,
-    selectedClusters: selectedClusters.length,
-    selectedSources: selectedClusters.reduce(
+    selectedClusters: primaryClusters.length,
+    selectedSources: primaryClusters.reduce(
       (acc, row) => acc + row.sourceKeys.length,
       0,
     ),
+    secondaryClusters: secondaryClusters.length,
     elapsedSeconds: Math.round(elapsedMs / 1000),
   });
 }

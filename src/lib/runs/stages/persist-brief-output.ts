@@ -44,10 +44,79 @@ async function loadArticleIdsBySource(
   return map;
 }
 
+export async function upsertSecondarySourceMetadata(input: {
+  runId: string;
+  secondaryClusters: ClusterDraft[];
+  sourceByKey: Map<string, CandidateSource>;
+}): Promise<void> {
+  if (input.secondaryClusters.length === 0) {
+    logLine("persist: secondary metadata upsert skipped (no secondary clusters)");
+    return;
+  }
+
+  const uniqueByPublisherCanonical = new Map<string, CandidateSource>();
+  for (const cluster of input.secondaryClusters) {
+    for (const sourceKey of cluster.sourceKeys) {
+      const source = input.sourceByKey.get(sourceKey);
+      if (!source) continue;
+      uniqueByPublisherCanonical.set(
+        `${source.publisherId}::${source.canonicalUrl}`,
+        source,
+      );
+    }
+  }
+
+  const rows = Array.from(uniqueByPublisherCanonical.values()).map((source) => ({
+    run_id: input.runId,
+    publisher_id: source.publisherId,
+    canonical_url: source.canonicalUrl,
+    title: source.title,
+    published_at: source.publishedAt,
+    source_url: source.url,
+    body_text: null,
+    extraction_model: null,
+    clustering_model: null,
+    relevance_selection_model: null,
+    metadata: {
+      source_url: source.url,
+      source_tier: "secondary",
+      extraction_state: "metadata_only",
+    },
+  }));
+
+  if (rows.length === 0) {
+    logLine("persist: secondary metadata upsert skipped (no sources)");
+    return;
+  }
+
+  const supabase = createSupabaseServiceClient();
+  logLine("persist: secondary metadata upsert started", {
+    secondaryClusters: input.secondaryClusters.length,
+    candidateRows: rows.length,
+  });
+  const { error } = await supabase
+    .from("articles")
+    .upsert(rows, {
+      onConflict: "publisher_id,canonical_url",
+      ignoreDuplicates: true,
+    });
+  if (error) throw new Error(error.message);
+  logLine("persist: secondary metadata upsert completed", {
+    attemptedRows: rows.length,
+    note: "existing article rows were preserved",
+  });
+}
+
 async function insertPublishedBriefRows(input: {
+  primaryClusters: ClusterDraft[];
+  secondaryClusters: ClusterDraft[];
   storySummaries: StorySummaryRow[];
   briefSections: BriefSectionRow[];
-}): Promise<{ briefId: string; storyIdByPosition: Map<number, string> }> {
+}): Promise<{
+  briefId: string;
+  storyIdByPosition: Map<number, string>;
+  secondaryStoryIdByClusterId: Map<string, string>;
+}> {
   if (input.storySummaries.length !== input.briefSections.length) {
     throw new Error("Brief section count must match story summary count.");
   }
@@ -65,14 +134,23 @@ async function insertPublishedBriefRows(input: {
   if (briefError) throw new Error(briefError.message);
 
   logLine("persist_brief_output: inserting story rows", {
-    storyRows: input.storySummaries.length,
+    primaryStoryRows: input.storySummaries.length,
+    secondaryStoryRows: input.secondaryClusters.length,
   });
+  const clusterById = new Map<string, ClusterDraft>();
+  for (const cluster of input.primaryClusters) {
+    clusterById.set(cluster.id, cluster);
+  }
   const { data: stories, error: storiesError } = await supabase
     .from("stories")
     .insert(
       input.storySummaries.map((summary, index) => ({
         brief_id: brief.id,
         position: index + 1,
+        tier: "primary",
+        cluster_id: summary.clusterId,
+        selection_reason: clusterById.get(summary.clusterId)?.selectionReason ?? null,
+        source_count: clusterById.get(summary.clusterId)?.sourceKeys.length ?? null,
         markdown: summary.detailMarkdown,
         detail_markdown: summary.detailMarkdown,
       })),
@@ -88,6 +166,32 @@ async function insertPublishedBriefRows(input: {
     storyIdByPosition.set(row.position, row.id);
   }
 
+  const secondaryStoryIdByClusterId = new Map<string, string>();
+  if (input.secondaryClusters.length > 0) {
+    const secondaryStoryRows = input.secondaryClusters.map((cluster, index) => ({
+      brief_id: brief.id,
+      position: input.storySummaries.length + index + 1,
+      tier: "secondary",
+      cluster_id: cluster.id,
+      selection_reason: cluster.selectionReason,
+      source_count: cluster.sourceKeys.length,
+      markdown: cluster.title,
+      detail_markdown: null,
+    }));
+    const { data: secondaryStories, error: secondaryStoriesError } = await supabase
+      .from("stories")
+      .insert(secondaryStoryRows)
+      .select("id,cluster_id");
+    if (secondaryStoriesError) throw new Error(secondaryStoriesError.message);
+    if (!secondaryStories || secondaryStories.length !== secondaryStoryRows.length) {
+      throw new Error("Unable to insert secondary stories for brief publication.");
+    }
+    for (const row of secondaryStories) {
+      if (!row.cluster_id) continue;
+      secondaryStoryIdByClusterId.set(row.cluster_id, row.id);
+    }
+  }
+
   logLine("persist_brief_output: inserting brief section rows", {
     sectionRows: input.briefSections.length,
   });
@@ -101,7 +205,7 @@ async function insertPublishedBriefRows(input: {
   );
   if (sectionsError) throw new Error(sectionsError.message);
 
-  return { briefId: brief.id, storyIdByPosition };
+  return { briefId: brief.id, storyIdByPosition, secondaryStoryIdByClusterId };
 }
 
 async function insertStoryArticleLinks(
@@ -174,44 +278,87 @@ function storyArticleRowsFromCopiedIds(input: {
   return out;
 }
 
+function storyArticleRowsFromSecondaryClusters(input: {
+  secondaryClusters: ClusterDraft[];
+  sourceByKey: Map<string, CandidateSource>;
+  articleIdBySource: Map<string, string>;
+  secondaryStoryIdByClusterId: Map<string, string>;
+}): Array<{ story_id: string; article_id: string }> {
+  const out: Array<{ story_id: string; article_id: string }> = [];
+  for (const cluster of input.secondaryClusters) {
+    const storyId = input.secondaryStoryIdByClusterId.get(cluster.id);
+    if (!storyId) continue;
+    const seen = new Set<string>();
+    for (const sourceKey of cluster.sourceKeys) {
+      const source = input.sourceByKey.get(sourceKey);
+      if (!source) continue;
+      const articleId = input.articleIdBySource.get(
+        `${source.publisherId}::${source.canonicalUrl}`,
+      );
+      if (!articleId || seen.has(articleId)) continue;
+      seen.add(articleId);
+      out.push({ story_id: storyId, article_id: articleId });
+    }
+  }
+  return out;
+}
+
 export async function persistBriefOutput(input: {
-  selectedClusters: ClusterDraft[];
+  primaryClusters: ClusterDraft[];
+  secondaryClusters: ClusterDraft[];
   sourceByKey: Map<string, CandidateSource>;
   storySummaries: StorySummaryRow[];
   briefSections: BriefSectionRow[];
 }): Promise<{ briefId: string }> {
   divider("persist_brief_output");
   logLine("persist_brief_output: input prepared", {
-    selectedClusters: input.selectedClusters.length,
+    primaryClusters: input.primaryClusters.length,
+    secondaryClusters: input.secondaryClusters.length,
     storySummaries: input.storySummaries.length,
     briefSections: input.briefSections.length,
   });
 
-  const { briefId, storyIdByPosition } = await insertPublishedBriefRows({
+  const { briefId, storyIdByPosition, secondaryStoryIdByClusterId } =
+    await insertPublishedBriefRows({
+    primaryClusters: input.primaryClusters,
+    secondaryClusters: input.secondaryClusters,
     storySummaries: input.storySummaries,
     briefSections: input.briefSections,
   });
 
-  const allSelectedSources = input.selectedClusters.flatMap((cluster) =>
+  const allSelectedClusters = [...input.primaryClusters, ...input.secondaryClusters];
+  const allSelectedSources = allSelectedClusters.flatMap((cluster) =>
     cluster.sourceKeys
       .map((key) => input.sourceByKey.get(key))
       .filter((value): value is CandidateSource => Boolean(value)),
   );
   const articleIdBySource = await loadArticleIdsBySource(allSelectedSources);
 
-  const storyArticleRows = storyArticleRowsFromClusters({
-    selectedClusters: input.selectedClusters,
+  const primaryStoryArticleRows = storyArticleRowsFromClusters({
+    selectedClusters: input.primaryClusters,
     sourceByKey: input.sourceByKey,
     storySummaries: input.storySummaries,
     articleIdBySource,
     storyIdByPosition,
   });
+  const secondaryStoryArticleRows = storyArticleRowsFromSecondaryClusters({
+    secondaryClusters: input.secondaryClusters,
+    sourceByKey: input.sourceByKey,
+    articleIdBySource,
+    secondaryStoryIdByClusterId,
+  });
+  const storyArticleRows = [
+    ...primaryStoryArticleRows,
+    ...secondaryStoryArticleRows,
+  ];
 
   await insertStoryArticleLinks(storyArticleRows);
 
   logLine("persist_brief_output: done", {
     briefId,
-    stories: input.storySummaries.length,
+    stories: input.storySummaries.length + input.secondaryClusters.length,
+    primaryStories: input.storySummaries.length,
+    secondaryStories: input.secondaryClusters.length,
     sections: input.briefSections.length,
     storyArticleLinks: storyArticleRows.length,
   });
@@ -240,6 +387,8 @@ export async function persistBriefOutputWithArticleIds(input: {
   }
 
   const { briefId, storyIdByPosition } = await insertPublishedBriefRows({
+    primaryClusters: [],
+    secondaryClusters: [],
     storySummaries: input.storySummaries,
     briefSections: input.briefSections,
   });

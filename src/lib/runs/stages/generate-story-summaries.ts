@@ -184,7 +184,7 @@ export async function generateStorySummaries(input: {
       "3) In `summary`, synthesize all sources into one comprehensive, **very detailed** and coherent account; lead with the newest verified development, then context. Format with Markdown, use headings, links and bullet lists to create a readable narrative.",
       "4) `timeline` must list main developments from oldest to newest. Exactly one item must have is_latest=true.",
       "5) `latest_development` must describe that same newest item in one sentence.",
-      "6) `latest_development_at` must equal the `timestamp` of the timeline entry where is_latest is true (use null for both when timing is unknown).",
+      "6) `latest_development_at` is optional timing context for `latest_development` (use null when unknown).",
       "7) `key_facts`: each item must be a detailed fact in Spanish (about 1–3 sentences, minimum ~80 characters typical). Include who did what, where relevant places, figures, institutional roles, and dates when the sources give them. One main claim per item; no duplicates; no opinions.",
       "8) `quotes`: only direct quotes from the sources. Every object must include `speaker` (short name) and `speaker_context` (official role, political party, ministry, or affiliation as grounded in the articles). Use an empty array if none.",
       "9) Set `story_id` exactly as given below (do not change it).",
@@ -225,15 +225,8 @@ export async function generateStorySummaries(input: {
       },
     );
     const normalized = normalizeStorySummaryStrings(generated);
-    const latestTimeline = normalized.timeline.find((item) => item.is_latest);
-    const aligned = {
-      ...normalized,
-      latest_development_at: latestTimeline
-        ? latestTimeline.timestamp
-        : normalized.latest_development_at,
-    };
     const finalPayload = simpleStorySummarySchema.parse({
-      ...aligned,
+      ...normalized,
       story_id: cluster.id,
       as_of: referenceNowIso,
     });

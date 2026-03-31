@@ -125,6 +125,7 @@ export async function clusterSources(candidates: CandidateSource[]): Promise<{
       "Use enough distinct events to cover the headline set; one event can later receive one or many sources.",
       "For each event, return a unique short event_ref (e1, e2, e3, ...).",
       "For each event, write a rich description of about 25 to 40 words (can go longer if needed): name the event, key actors, context, and stakes in full sentences.",
+      "Write every event description in Spanish (es-CL neutral journalistic register), with proper accents and punctuation.",
       'Return JSON object: {"events":[{"event_ref":"e1","description":"..."}]}',
       "Candidate sources (one per line inside the block: source_ref | source headline):",
       "<candidate_sources>",

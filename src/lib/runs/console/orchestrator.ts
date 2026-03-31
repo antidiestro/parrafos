@@ -21,6 +21,7 @@ import {
   persistDiscoveryCandidates,
   prefetchMetadata,
   selectClusters,
+  upsertSecondarySourceMetadata,
   upsertExtractedArticles,
 } from "@/lib/runs/stages";
 
@@ -100,21 +101,30 @@ export async function runConsoleWorkflow() {
       throw new Error("No eligible clusters were created.");
     }
 
-    const selectedClusters = await selectClusters({ clusters, sourceByKey });
+    const { primaryClusters, secondaryClusters } = await selectClusters({
+      clusters,
+      sourceByKey,
+    });
     const { extracted, skippedExisting } = await extractBodies({
-      selectedClusters,
+      selectedClusters: primaryClusters,
       sourceByKey,
       prefetchedByKey,
     });
     await upsertExtractedArticles(extracted, runId);
+    await upsertSecondarySourceMetadata({
+      runId,
+      secondaryClusters,
+      sourceByKey,
+    });
 
     const storySummaries = await generateStorySummaries({
-      selectedClusters,
+      selectedClusters: primaryClusters,
       sourceByKey,
     });
     const briefSections = await composeBriefSections(storySummaries);
     const published = await persistBriefOutput({
-      selectedClusters,
+      primaryClusters,
+      secondaryClusters,
       sourceByKey,
       storySummaries,
       briefSections,
@@ -140,11 +150,12 @@ export async function runConsoleWorkflow() {
       discovered: discovered.length,
       metadataReadyRecent: metadataReadyRecent.length,
       clusters: clusters.length,
-      selectedClusters: selectedClusters.length,
-      selectedSources: selectedClusters.reduce(
+      selectedClusters: primaryClusters.length,
+      selectedSources: primaryClusters.reduce(
         (acc, row) => acc + row.sourceKeys.length,
         0,
       ),
+      secondaryClusters: secondaryClusters.length,
       extractedNew: extracted.length,
       skippedExisting,
       elapsedSeconds: Math.round(elapsedMs / 1000),
