@@ -150,11 +150,8 @@ export default async function HomePage() {
 
       {bundle && bundle.secondaryStories.length > 0 ? (
         <section className="mt-16 space-y-4">
-          <h2
-            className="text-2xl leading-relaxed text-(--text)"
-            lang="es"
-          >
-            También estamos mirando
+          <h2 className="text-2xl leading-relaxed text-(--text)" lang="es">
+            También debes saber...
           </h2>
           <SecondaryStoriesList stories={bundle.secondaryStories} />
         </section>
