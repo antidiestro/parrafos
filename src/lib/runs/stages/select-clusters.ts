@@ -104,6 +104,8 @@ export async function selectClusters(input: {
       `Return at most ${maxPrimary} rows in primary_clusters using positions 1..${maxPrimary}.`,
       `Return at most ${maxSecondary} rows in secondary_clusters using positions 1..${maxSecondary}.`,
       "Return any remaining clusters in diffuse_clusters (uncapped, no position needed).",
+      "Each story includes source_count (number of articles/sources in that cluster); use it when assigning tiers.",
+      "Primary clusters MUST have source_count >= 3.",
       "Every eligible cluster_id must appear in exactly one bucket: primary_clusters, secondary_clusters, or diffuse_clusters.",
       "A diffuse cluster means the cluster does not clearly map to one concrete specific news event.",
       "Prioritize public impact and broad relevance.",
